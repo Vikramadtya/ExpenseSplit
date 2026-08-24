@@ -1,0 +1,18 @@
+import './tracing';
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import { TracingInterceptor } from './common/interceptors/tracing.interceptor';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  // Enable CORS since frontend is on a different port
+  app.enableCors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    credentials: true,
+  });
+
+  app.useGlobalInterceptors(new TracingInterceptor());
+  await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
+}
+bootstrap();

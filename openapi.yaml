@@ -1,0 +1,1025 @@
+openapi: 3.0.3
+info:
+  title: ExpenseSplit API
+  description: Multi-tenant SaaS API for expense splitting and debt simplification.
+  version: 2.0.0
+servers:
+- url: /api/v1
+  description: Main API
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session
+  schemas:
+    ProblemDetail:
+      type: object
+      required:
+      - type
+      - title
+      - status
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri
+        requestId:
+          type: string
+        traceId:
+          type: string
+    User:
+      type: object
+      required:
+      - id
+      - email
+      - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+    Workspace:
+      type: object
+      required:
+      - id
+      - name
+      - defaultCurrency
+      - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        defaultCurrency:
+          type: string
+          example: USD
+        createdAt:
+          type: string
+          format: date-time
+    Expense:
+      type: object
+      required:
+      - id
+      - workspaceId
+      - description
+      - amount
+      - date
+      - splitType
+      - paidBy
+      - createdAt
+      - category
+      - currency
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspaceId:
+          type: string
+          format: uuid
+        description:
+          type: string
+        amount:
+          type: number
+          format: float
+        date:
+          type: string
+          format: date-time
+        splitType:
+          type: string
+          enum:
+          - EQUAL
+          - EXACT
+          - PERCENTAGE
+        paidBy:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        splits:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpenseSplit'
+        category:
+          type: string
+        currency:
+          type: string
+          default: USD
+        type:
+          type: string
+          enum:
+          - EXPENSE
+          - TRANSFER
+          default: EXPENSE
+        tags:
+          type: array
+          items:
+            type: string
+        recurringInterval:
+          type: string
+          enum:
+          - NONE
+          - DAILY
+          - WEEKLY
+          - MONTHLY
+          default: NONE
+    ExpenseSplit:
+      type: object
+      required:
+      - id
+      - userId
+      - amountOwed
+      - amountPaid
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        amountOwed:
+          type: number
+          format: float
+        amountPaid:
+          type: number
+          format: float
+    Settlement:
+      type: object
+      required:
+      - id
+      - workspaceId
+      - payerId
+      - payeeId
+      - amount
+      - date
+      - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspaceId:
+          type: string
+          format: uuid
+        payerId:
+          type: string
+          format: uuid
+        payeeId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: float
+        date:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    Balance:
+      type: object
+      required:
+      - byCurrency
+      properties:
+        byCurrency:
+          type: array
+          items:
+            type: object
+            required:
+            - currency
+            - total
+            - owedToYou
+            - youOwe
+            - perMember
+            properties:
+              currency:
+                type: string
+              total:
+                type: number
+              owedToYou:
+                type: number
+              youOwe:
+                type: number
+              perMember:
+                type: array
+                items:
+                  type: object
+                  required:
+                  - userId
+                  - net
+                  properties:
+                    userId:
+                      type: string
+                      format: uuid
+                    net:
+                      type: number
+    SimplifiedDebt:
+      type: object
+      required:
+      - debtor
+      - creditor
+      - amount
+      - currency
+      properties:
+        debtor:
+          type: string
+          format: uuid
+        creditor:
+          type: string
+          format: uuid
+        amount:
+          type: number
+        currency:
+          type: string
+    Analytics:
+      type: object
+      required:
+      - byCurrency
+      properties:
+        byCurrency:
+          type: array
+          items:
+            type: object
+            required:
+            - currency
+            - totalSpend
+            - expenseCount
+            - spendByMember
+            - spendOverTime
+            - topCategories
+            - trueSpending
+            - cashOut
+            - received
+            - paid
+            - todaySpend
+            - thisMonthSpend
+            properties:
+              currency:
+                type: string
+              totalSpend:
+                type: number
+              expenseCount:
+                type: integer
+              spendByMember:
+                type: array
+                items:
+                  type: object
+                  required:
+                  - userId
+                  - name
+                  - amount
+                  properties:
+                    userId:
+                      type: string
+                      format: uuid
+                    name:
+                      type: string
+                    amount:
+                      type: number
+              spendOverTime:
+                type: array
+                items:
+                  type: object
+                  required:
+                  - date
+                  - amount
+                  properties:
+                    date:
+                      type: string
+                      format: date
+                    amount:
+                      type: number
+              topCategories:
+                type: array
+                items:
+                  type: object
+                  required:
+                  - description
+                  - count
+                  - total
+                  properties:
+                    description:
+                      type: string
+                    count:
+                      type: integer
+                    total:
+                      type: number
+              trueSpending:
+                type: number
+              cashOut:
+                type: number
+              received:
+                type: number
+              paid:
+                type: number
+              todaySpend:
+                type: number
+              thisMonthSpend:
+                type: number
+              tagsAnalysis:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    tag:
+                      type: string
+                    total:
+                      type: number
+    PayerInfo:
+      type: object
+      required:
+      - userId
+      - amount
+      properties:
+        userId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: float
+    CreateExpenseDto:
+      type: object
+      required:
+      - description
+      - amount
+      - date
+      - splitType
+      - groupId
+      - payers
+      properties:
+        description:
+          type: string
+        amount:
+          type: number
+        date:
+          type: string
+          format: date-time
+        splitType:
+          type: string
+          enum:
+          - EQUAL
+          - EXACT
+          - PERCENTAGE
+        groupId:
+          type: string
+          format: uuid
+        category:
+          type: string
+        currency:
+          type: string
+          default: USD
+        type:
+          type: string
+          enum:
+          - EXPENSE
+          - TRANSFER
+          default: EXPENSE
+        tags:
+          type: array
+          items:
+            type: string
+        recurringInterval:
+          type: string
+          enum:
+          - NONE
+          - DAILY
+          - WEEKLY
+          - MONTHLY
+          default: NONE
+        payers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PayerInfo'
+        exactAmounts:
+          type: array
+          items:
+            type: object
+            properties:
+              userId:
+                type: string
+                format: uuid
+              amount:
+                type: number
+        percentages:
+          type: array
+          items:
+            type: object
+            properties:
+              userId:
+                type: string
+                format: uuid
+              percentage:
+                type: number
+    CreateSettlementDto:
+      type: object
+      required:
+      - payeeId
+      properties:
+        payeeId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          description: Optional custom amount. If omitted, settles the entire debt.
+        date:
+          type: string
+          format: date-time
+security:
+- cookieAuth: []
+paths:
+  /users/me:
+    get:
+      summary: Get current authenticated user
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /users/{userId}:
+    get:
+      summary: Get a user by ID
+      operationId: getUserById
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: User object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /workspaces:
+    get:
+      summary: List workspaces for current user
+      operationId: getWorkspaces
+      responses:
+        '200':
+          description: A list of workspaces
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Workspace'
+    post:
+      summary: Create a new workspace
+      operationId: createWorkspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - name
+              properties:
+                name:
+                  type: string
+                defaultCurrency:
+                  type: string
+                  default: USD
+      responses:
+        '201':
+          description: Workspace created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+  /workspaces/{workspaceId}:
+    get:
+      summary: Get workspace by ID
+      operationId: getWorkspace
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Workspace object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+  /workspaces/{workspaceId}/members:
+    get:
+      summary: List members of a workspace
+      operationId: getWorkspaceMembers
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: A list of members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+    post:
+      summary: Invite a user to a workspace by email
+      operationId: inviteMember
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - email
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '201':
+          description: User invited
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+  /workspaces/{workspaceId}/expenses:
+    get:
+      summary: List expenses in a workspace
+      operationId: listWorkspaceExpenses
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: search
+        in: query
+        schema:
+          type: string
+      - name: q
+        in: query
+        schema:
+          type: string
+      - name: currency
+        in: query
+        schema:
+          type: string
+      - name: category
+        in: query
+        schema:
+          type: string
+      - name: sortBy
+        in: query
+        schema:
+          type: string
+      - name: tags
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: List of expenses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Expense'
+    post:
+      summary: Add a new expense to a workspace
+      operationId: createExpense
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - description
+              - amount
+              - date
+              - splitType
+              - paidBy
+              - participants
+              - category
+              - currency
+              properties:
+                description:
+                  type: string
+                amount:
+                  type: number
+                  format: float
+                date:
+                  type: string
+                  format: date-time
+                splitType:
+                  type: string
+                  enum:
+                  - EQUAL
+                  - EXACT
+                  - PERCENTAGE
+                  default: EQUAL
+                paidBy:
+                  type: string
+                  format: uuid
+                participants:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                exactAmounts:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                    - userId
+                    - amount
+                    properties:
+                      userId:
+                        type: string
+                        format: uuid
+                      amount:
+                        type: number
+                category:
+                  type: string
+                percentages:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                    - userId
+                    - percentage
+                    properties:
+                      userId:
+                        type: string
+                        format: uuid
+                      percentage:
+                        type: number
+                currency:
+                  type: string
+                  default: USD
+      responses:
+        '201':
+          description: Expense created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+  /expenses/{expenseId}:
+    get:
+      summary: Get expense by ID
+      operationId: getExpense
+      parameters:
+      - name: expenseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Expense object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+    patch:
+      summary: Update an expense
+      operationId: updateExpense
+      parameters:
+      - name: expenseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description:
+                  type: string
+                amount:
+                  type: number
+                date:
+                  type: string
+                  format: date-time
+                splitType:
+                  type: string
+                  enum:
+                  - EQUAL
+                  - EXACT
+                  - PERCENTAGE
+                paidBy:
+                  type: string
+                  format: uuid
+                participants:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                exactAmounts:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      userId:
+                        type: string
+                        format: uuid
+                      amount:
+                        type: number
+                category:
+                  type: string
+                percentages:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      userId:
+                        type: string
+                        format: uuid
+                      percentage:
+                        type: number
+                currency:
+                  type: string
+      responses:
+        '200':
+          description: Updated expense
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+    delete:
+      summary: Delete an expense
+      operationId: deleteExpense
+      parameters:
+      - name: expenseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: Deleted
+  /workspaces/{workspaceId}/balances:
+    get:
+      summary: Get net balances for a workspace
+      operationId: getBalances
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Balance summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Balance'
+  /workspaces/{workspaceId}/balances/debts:
+    get:
+      summary: Get debts for a workspace, optionally simplified
+      operationId: getDebts
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: simplified
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+      responses:
+        '200':
+          description: Debt list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SimplifiedDebt'
+  /workspaces/{workspaceId}/settlements:
+    get:
+      summary: List settlements in a workspace
+      operationId: listSettlements
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: List of settlements
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Settlement'
+    post:
+      summary: Record a settlement
+      operationId: createSettlement
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - payerId
+              - payeeId
+              - amount
+              - date
+              properties:
+                payerId:
+                  type: string
+                  format: uuid
+                payeeId:
+                  type: string
+                  format: uuid
+                amount:
+                  type: number
+                  minimum: 0.01
+                date:
+                  type: string
+                  format: date-time
+      responses:
+        '201':
+          description: Settlement recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settlement'
+  /workspaces/{workspaceId}/analytics:
+    get:
+      summary: Get spending analytics for a workspace
+      operationId: getAnalytics
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Analytics data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Analytics'
+  /analytics:
+    get:
+      summary: Get global analytics across all workspaces
+      operationId: getGlobalAnalytics
+      responses:
+        '200':
+          description: Global Analytics data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Analytics'
+  /balances:
+    get:
+      summary: Get global balances across all workspaces
+      operationId: getGlobalBalances
+      responses:
+        '200':
+          description: Global Balance data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Balance'
+  /workspaces/{workspaceId}/activity:
+    get:
+      summary: Get recent activity
+      tags:
+      - Workspaces
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    type:
+                      type: string
+                      enum:
+                      - EXPENSE
+                      - SETTLEMENT
+                    description:
+                      type: string
+                    amount:
+                      type: number
+                    date:
+                      type: string
+                      format: date-time
+                    actionBy:
+                      type: string
+      operationId: getActivity
+  /balances/friends:
+    get:
+      summary: Get global balances with friends
+      tags:
+      - Balances
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    userId:
+                      type: string
+                      format: uuid
+                    name:
+                      type: string
+                    avatarUrl:
+                      type: string
+                    netBalance:
+                      type: number
+                    currency:
+                      type: string
+      operationId: getFriendsBalances

@@ -1,0 +1,46 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700&display=swap');
+
+@import 'tailwindcss';
+@config "../tailwind.config.js";
+
+:root {
+  --background: #ffffff;
+  --surface: #f8fafc;
+  --border: #e2e8f0;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --primary: #6366f1;
+  --primary-hover: #4f46e5;
+  --glass-bg: rgba(248, 250, 252, 0.7);
+  --glass-border: rgba(226, 232, 240, 0.8);
+}
+
+.dark {
+  --background: #09090b;
+  --surface: #18181b;
+  --border: #27272a;
+  --text-main: #f8fafc;
+  --text-muted: #a1a1aa;
+  --primary: #6366f1;
+  --primary-hover: #4f46e5;
+  --glass-bg: rgba(24, 24, 27, 0.6);
+  --glass-border: rgba(39, 39, 42, 0.8);
+}
+
+@layer base {
+  body {
+    @apply bg-background text-text-main font-sans antialiased transition-colors duration-300;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    background-color: var(--glass-bg);
+    border-color: var(--glass-border);
+    @apply backdrop-blur-md border rounded-xl shadow-xl transition-all duration-300;
+  }
+
+  .btn-primary {
+    @apply bg-primary hover:bg-primary-hover text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:shadow-[0_0_25px_rgba(99,102,241,0.6)];
+  }
+}
