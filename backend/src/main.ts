@@ -13,8 +13,14 @@ async function bootstrap() {
     credentials: true,
   });
 
+  // Always use the clean console logger
   app.useGlobalInterceptors(new LoggingInterceptor());
-  // app.useGlobalInterceptors(new TracingInterceptor()); // Disabled tracing to reduce noise
+
+  // Conditionally enable verbose OpenTelemetry tracing via env var
+  if (process.env.ENABLE_OPENTELEMETRY === 'true') {
+    app.useGlobalInterceptors(new TracingInterceptor());
+  }
+
   await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
 }
 bootstrap();
