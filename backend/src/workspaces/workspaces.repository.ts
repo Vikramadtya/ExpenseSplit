@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { DRIZZLE_CLIENT } from '../database/database.module';
 import type { DrizzleDb } from '../database/database.module';
 import { eq } from 'drizzle-orm';
-import { workspaceMembers } from '../database/schema';
+import { workspaceMembers, workspaces } from '../database/schema';
 
 @Injectable()
 export class WorkspacesRepository {
@@ -26,12 +26,21 @@ export class WorkspacesRepository {
     throw new Error('Not implemented — add your business logic here');
   }
 
-  async create(data: { name: string; createdById: string }): Promise<any> {
-    throw new Error('Not implemented — add your business logic here');
+  async create(data: { name: string }): Promise<any> {
+    const [newWorkspace] = await this.db.insert(workspaces).values(data).returning();
+    return newWorkspace;
   }
 
   async addMember(workspaceId: string, userId: string, role?: string): Promise<any> {
-    throw new Error('Not implemented — add your business logic here');
+    const [newWorkspaceMember] = await this.db
+      .insert(workspaceMembers)
+      .values({
+        workspaceId,
+        userId,
+        role: (role as 'ADMIN' | 'MEMBER') || 'MEMBER',
+      })
+      .returning();
+    return newWorkspaceMember;
   }
 
   async getMembers(workspaceId: string): Promise<any[]> {

@@ -4,7 +4,7 @@ export interface IWorkspacesRepository {
   findById(id: string): Promise<any>;
   findByName(name: string): Promise<any>;
   findByUserId(userId: string): Promise<any[]>;
-  create(data: { name: string; createdById: string }): Promise<any>;
+  create(data: { name: string }): Promise<any>;
   addMember(workspaceId: string, userId: string, role?: string): Promise<any>;
   getMembers(workspaceId: string): Promise<any[]>;
 }

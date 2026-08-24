@@ -1,6 +1,6 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
-import { IWorkspacesRepositoryToken } from '../common/interfaces/repository.interfaces';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { IWorkspacesRepository } from '../common/interfaces/repository.interfaces';
+import { IWorkspacesRepositoryToken } from '../common/interfaces/repository.interfaces';
 
 const MOCK_WORKSPACES = [
   {
@@ -38,16 +38,21 @@ export class WorkspacesService {
   ) {}
 
   async listWorkspaces(userId: string) {
-    this.repository.findAll(userId);
-    return MOCK_WORKSPACES;
+    return this.repository.findAll(userId);
   }
 
   async createWorkspace(name: string, defaultCurrency: string, userId: string) {
+    // 1. Await the creation and only pass the valid schema column (name)
+    const newWorkspace = await this.repository.create({ name });
+
+    // 2. Add the user as an ADMIN member of the new workspace
+    await this.repository.addMember(newWorkspace.id, userId, 'ADMIN');
+
     return {
-      id: 'ws-new',
-      name,
+      id: newWorkspace.id,
+      name: newWorkspace.name,
       defaultCurrency: defaultCurrency || 'USD',
-      createdAt: new Date().toISOString(),
+      createdAt: newWorkspace.createdAt,
     };
   }
 
