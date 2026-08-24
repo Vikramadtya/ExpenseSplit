@@ -11,7 +11,8 @@ import {
   getCurrentUserOptions,
 } from '../api/@tanstack/react-query.gen';
 import { ThemeToggle } from '../features/theme/components/ThemeToggle';
-import { LayoutGrid, LogOut, X, Users, BarChart2 } from 'lucide-react';
+import { LayoutGrid, LogOut, X, Users } from 'lucide-react';
+
 import { GlobalOverview } from '../features/workspaces/components/GlobalOverview';
 import { WorkspaceList } from '../features/workspaces/components/WorkspaceList';
 
@@ -107,7 +108,6 @@ function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
 
 export default function WorkspacesRoute() {
   const [showCreate, setShowCreate] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'workspaces'>('overview');
   const [selectedCurrency, setSelectedCurrency] = useState<string>('');
 
   const { data: workspaces = [], isLoading } = useQuery(getWorkspacesOptions());
@@ -197,48 +197,22 @@ export default function WorkspacesRoute() {
           </div>
         </header>
 
-        {/* Custom Tabs */}
-        <div className="flex space-x-1 bg-surface border border-border p-1 rounded-lg mb-8 max-w-fit shadow-sm">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${
-              activeTab === 'overview'
-                ? 'bg-primary text-white shadow'
-                : 'text-text-muted hover:text-text-main hover:bg-background/50'
-            }`}
-          >
-            <BarChart2 className="w-4 h-4" />
-            Global Overview
-          </button>
-          <button
-            onClick={() => setActiveTab('workspaces')}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${
-              activeTab === 'workspaces'
-                ? 'bg-primary text-white shadow'
-                : 'text-text-muted hover:text-text-main hover:bg-background/50'
-            }`}
-          >
-            <LayoutGrid className="w-4 h-4" />
-            Your Workspaces
-          </button>
-        </div>
-
-        {activeTab === 'overview' && (
-          <GlobalOverview
-            analytics={analytics}
-            balances={balances}
-            selectedCurrency={selectedCurrency}
-            setSelectedCurrency={setSelectedCurrency}
-          />
-        )}
-
-        {activeTab === 'workspaces' && (
+        <div className="space-y-12">
           <WorkspaceList
             workspaces={workspaces}
             isLoading={isLoading}
             setShowCreate={setShowCreate}
           />
-        )}
+
+          <div className="pt-8 border-t border-border/50">
+            <GlobalOverview
+              analytics={analytics}
+              balances={balances}
+              selectedCurrency={selectedCurrency}
+              setSelectedCurrency={setSelectedCurrency}
+            />
+          </div>
+        </div>
       </div>
 
       {showCreate && <CreateWorkspaceModal onClose={() => setShowCreate(false)} />}
