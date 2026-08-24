@@ -36,6 +36,7 @@ export const users = pgTable('users', {
 export const workspaces = pgTable('workspaces', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: varchar('name', { length: 255 }).notNull(),
+  defaultCurrency: varchar('default_currency', { length: 3 }).notNull().default('USD'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

@@ -43,7 +43,10 @@ export class WorkspacesService {
 
   async createWorkspace(name: string, defaultCurrency: string, userId: string) {
     // 1. Await the creation and only pass the valid schema column (name)
-    const newWorkspace = await this.repository.create({ name });
+    const newWorkspace = await this.repository.create({
+      name,
+      defaultCurrency: defaultCurrency || 'USD',
+    });
 
     // 2. Add the user as an ADMIN member of the new workspace
     await this.repository.addMember(newWorkspace.id, userId, 'ADMIN');
@@ -51,7 +54,7 @@ export class WorkspacesService {
     return {
       id: newWorkspace.id,
       name: newWorkspace.name,
-      defaultCurrency: defaultCurrency || 'USD',
+      defaultCurrency: newWorkspace.defaultCurrency,
       createdAt: newWorkspace.createdAt,
     };
   }

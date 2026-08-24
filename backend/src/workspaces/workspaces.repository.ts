@@ -26,7 +26,7 @@ export class WorkspacesRepository {
     throw new Error('Not implemented — add your business logic here');
   }
 
-  async create(data: { name: string }): Promise<any> {
+  async create(data: { name: string; defaultCurrency: string }): Promise<any> {
     const [newWorkspace] = await this.db.insert(workspaces).values(data).returning();
     return newWorkspace;
   }
