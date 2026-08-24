@@ -2,6 +2,7 @@ import './tracing';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { TracingInterceptor } from './common/interceptors/tracing.interceptor';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -12,7 +13,8 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.useGlobalInterceptors(new TracingInterceptor());
+  app.useGlobalInterceptors(new LoggingInterceptor());
+  // app.useGlobalInterceptors(new TracingInterceptor()); // Disabled tracing to reduce noise
   await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
 }
 bootstrap();

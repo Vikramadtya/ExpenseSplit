@@ -7,7 +7,7 @@ const sdk = new NodeSDK({
   instrumentations: [getNodeAutoInstrumentations()],
 });
 
-sdk.start();
+// sdk.start(); // Disabled to prevent console flooding with OpenTelemetry JSON spans
 
 process.on('SIGTERM', () => {
   sdk
