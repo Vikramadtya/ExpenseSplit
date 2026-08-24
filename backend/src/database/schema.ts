@@ -51,46 +51,11 @@ export const workspaceMembers = pgTable('workspace_members', {
   joinedAt: timestamp('joined_at').defaultNow().notNull(),
 });
 
-export const groups = pgTable('groups', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  workspaceId: uuid('workspace_id')
-    .notNull()
-    .references(() => workspaces.id, { onDelete: 'cascade' }),
-  name: varchar('name', { length: 255 }).notNull(),
-  description: text('description'),
-  createdById: uuid('created_by_id')
-    .notNull()
-    .references(() => users.id),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
-
-export const groupMembers = pgTable(
-  'group_members',
-  {
-    workspaceId: uuid('workspace_id')
-      .notNull()
-      .references(() => workspaces.id, { onDelete: 'cascade' }),
-    groupId: uuid('group_id')
-      .notNull()
-      .references(() => groups.id, { onDelete: 'cascade' }),
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    joinedAt: timestamp('joined_at').defaultNow().notNull(),
-  },
-  (t) => ({
-    pk: primaryKey({ columns: [t.groupId, t.userId] }),
-  }),
-);
-
 export const expenses = pgTable('expenses', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id')
     .notNull()
     .references(() => workspaces.id, { onDelete: 'cascade' }),
-  groupId: uuid('group_id')
-    .notNull()
-    .references(() => groups.id, { onDelete: 'cascade' }),
   createdById: uuid('created_by_id')
     .notNull()
     .references(() => users.id),
@@ -139,28 +104,13 @@ export const settlements = pgTable('settlements', {
 
 export const workspacesRelations = relations(workspaces, ({ many }) => ({
   members: many(workspaceMembers),
-  groups: many(groups),
   expenses: many(expenses),
 }));
 
 export const usersRelations = relations(users, ({ many }) => ({
   workspaces: many(workspaceMembers),
-  groups: many(groupMembers),
   expensesCreated: many(expenses),
   expenseSplits: many(expenseSplits),
-}));
-
-export const groupsRelations = relations(groups, ({ one, many }) => ({
-  workspace: one(workspaces, {
-    fields: [groups.workspaceId],
-    references: [workspaces.id],
-  }),
-  createdBy: one(users, {
-    fields: [groups.createdById],
-    references: [users.id],
-  }),
-  members: many(groupMembers),
-  expenses: many(expenses),
 }));
 
 export const expensesRelations = relations(expenses, ({ one, many }) => ({
@@ -168,7 +118,6 @@ export const expensesRelations = relations(expenses, ({ one, many }) => ({
     fields: [expenses.workspaceId],
     references: [workspaces.id],
   }),
-  group: one(groups, { fields: [expenses.groupId], references: [groups.id] }),
   createdBy: one(users, {
     fields: [expenses.createdById],
     references: [users.id],

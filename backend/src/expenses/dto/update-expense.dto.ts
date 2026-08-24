@@ -2,7 +2,6 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 const updateExpenseSchema = z.object({
-  groupId: z.string().uuid().optional(),
   description: z.string().min(1).optional(),
   amount: z.number().positive().optional(),
   date: z.string().optional(),

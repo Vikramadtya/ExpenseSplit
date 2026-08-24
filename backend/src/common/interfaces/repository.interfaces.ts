@@ -10,27 +10,9 @@ export interface IWorkspacesRepository {
 }
 export const IWorkspacesRepositoryToken = Symbol('IWorkspacesRepository');
 
-// ─── Groups Repository ───────────────────────────────────────────────────────
-export interface IGroupsRepository {
-  findByWorkspace(workspaceId: string): Promise<any[]>;
-  findById(id: string): Promise<any>;
-  create(data: {
-    workspaceId: string;
-    name: string;
-    description?: string;
-    createdById: string;
-  }): Promise<any>;
-  delete(id: string): Promise<void>;
-  addMember(groupId: string, userId: string, workspaceId: string): Promise<any>;
-  removeMember(groupId: string, userId: string): Promise<void>;
-  getMembers(groupId: string): Promise<any[]>;
-}
-export const IGroupsRepositoryToken = Symbol('IGroupsRepository');
-
 // ─── Expenses Repository ─────────────────────────────────────────────────────
 export interface IExpensesRepository {
   findByWorkspace(workspaceId: string): Promise<any[]>;
-  findByGroup(groupId: string): Promise<any[]>;
   findById(id: string): Promise<any>;
   create(data: any): Promise<any>;
   update(id: string, data: any): Promise<any>;
