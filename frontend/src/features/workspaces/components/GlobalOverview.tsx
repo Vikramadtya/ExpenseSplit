@@ -13,6 +13,7 @@ import { BarChart2 } from 'lucide-react';
 import { formatCurrency, getCurrencySymbol } from '../../../utils/currency';
 
 interface GlobalOverviewProps {
+  isLoading?: boolean;
   analytics: any;
   balances: any;
   selectedCurrency: string;
@@ -20,6 +21,7 @@ interface GlobalOverviewProps {
 }
 
 export function GlobalOverview({
+  isLoading,
   analytics,
   balances,
   selectedCurrency,
@@ -54,7 +56,12 @@ export function GlobalOverview({
         )}
       </div>
 
-      {!activeBalance ? (
+      {isLoading ? (
+        <div className="animate-pulse space-y-6">
+          <div className="h-48 bg-surface rounded-xl border border-border"></div>
+          <div className="h-64 bg-surface rounded-xl border border-border"></div>
+        </div>
+      ) : !activeBalance ? (
         <div className="glass-panel p-12 text-center flex flex-col items-center">
           <div className="w-16 h-16 rounded-full bg-surface border border-border flex items-center justify-center mb-4">
             <BarChart2 className="w-8 h-8 text-text-muted opacity-50" />

@@ -23,7 +23,11 @@ client.interceptors.request.use((request) => {
   logger.debug('API_REQUEST', `${request.method} ${request.url}`);
   const token = localStorage.getItem('access_token');
   if (token) {
-    request.headers.set('Authorization', `Bearer ${token}`);
+    if (request.headers.set) {
+      request.headers.set('Authorization', `Bearer ${token}`);
+    } else {
+      (request.headers as any)['Authorization'] = `Bearer ${token}`;
+    }
   }
   return request;
 });

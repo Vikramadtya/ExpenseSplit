@@ -110,11 +110,12 @@ export default function WorkspacesRoute() {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedCurrency, setSelectedCurrency] = useState<string>('');
 
-  const { data: workspaces = [], isLoading } = useQuery(getWorkspacesOptions());
+  const { data: workspaces = [], isLoading: isLoadingWorkspaces } =
+    useQuery(getWorkspacesOptions());
   const { data: currentUser } = useQuery(getCurrentUserOptions());
   const [showProfile, setShowProfile] = useState(false);
-  const { data: analytics } = useQuery(getGlobalAnalyticsOptions());
-  const { data: balances } = useQuery(getGlobalBalancesOptions());
+  const { data: analytics, isLoading: isLoadingAnalytics } = useQuery(getGlobalAnalyticsOptions());
+  const { data: balances, isLoading: isLoadingBalances } = useQuery(getGlobalBalancesOptions());
 
   const setGlobalData = useAppStore((state) => state.setGlobalData);
   const globalBalances = useAppStore((state) => state.globalBalances);
@@ -198,18 +199,21 @@ export default function WorkspacesRoute() {
         </header>
 
         <div className="space-y-12">
-          <WorkspaceList
-            workspaces={workspaces}
-            isLoading={isLoading}
-            setShowCreate={setShowCreate}
-          />
-
-          <div className="pt-8 border-t border-border/50">
+          <div>
             <GlobalOverview
+              isLoading={isLoadingAnalytics || isLoadingBalances}
               analytics={analytics}
-              balances={balances}
+              balances={displayBalances}
               selectedCurrency={selectedCurrency}
               setSelectedCurrency={setSelectedCurrency}
+            />
+          </div>
+
+          <div className="pt-8 border-t border-border/50">
+            <WorkspaceList
+              workspaces={workspaces}
+              isLoading={isLoadingWorkspaces}
+              setShowCreate={setShowCreate}
             />
           </div>
         </div>
