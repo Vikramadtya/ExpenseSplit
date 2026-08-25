@@ -9,9 +9,15 @@ export class WorkspacesRepository {
   constructor(@Inject(DRIZZLE_CLIENT) private readonly db: DrizzleDb) {}
 
   async findAll(userId: string): Promise<any[]> {
-    return this.db.query.workspaceMembers.findMany({
+    const memberships = await this.db.query.workspaceMembers.findMany({
       where: eq(workspaceMembers.userId, userId),
+      with: {
+        workspace: true,
+      },
     });
+
+    // Extract and return just the workspace objects
+    return memberships.map((m) => m.workspace);
   }
 
   async findById(id: string): Promise<any> {

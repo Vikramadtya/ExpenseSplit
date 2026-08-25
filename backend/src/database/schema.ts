@@ -133,3 +133,14 @@ export const expenseSplitsRelations = relations(expenseSplits, ({ one }) => ({
   }),
   user: one(users, { fields: [expenseSplits.userId], references: [users.id] }),
 }));
+
+export const workspaceMembersRelations = relations(workspaceMembers, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [workspaceMembers.workspaceId],
+    references: [workspaces.id],
+  }),
+  user: one(users, {
+    fields: [workspaceMembers.userId],
+    references: [users.id],
+  }),
+}));
