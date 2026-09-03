@@ -102,7 +102,7 @@ export default function LoginRoute() {
               </Link>
             ) : (
               <a
-                href="/api/v1/auth/google"
+                href={`${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/auth/google`}
                 className="w-full bg-white text-gray-900 hover:bg-gray-50 font-medium py-3 px-4 rounded-xl transition-all duration-200 shadow-md border border-gray-200 flex items-center justify-center gap-3 group relative overflow-hidden"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-gray-100 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 ease-in-out" />
