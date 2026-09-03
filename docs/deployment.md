@@ -5,6 +5,8 @@ This document outlines the steps to deploy the ExpenseSplit stack:
 - **Backend**: Render (Node.js/NestJS)
 - **Frontend**: Vercel (React/Vite)
 
+> **Security Note:** The backend is configured with strict security practices. No secrets (JWT, Google OAuth, Database URIs) are hardcoded or defaulted to fallbacks in the codebase. If any of the required environment variables are omitted during deployment, the server will immediately throw an error and refuse to boot.
+
 ## 1. Database (Neon)
 1. Go to [Neon.tech](https://neon.tech/) and create a project.
 2. Under your project dashboard, grab the **Postgres Connection String** (it will look like `postgresql://user:password@ep-cool-darkness-1234.us-east-2.aws.neon.tech/neondb?sslmode=require`).
@@ -18,13 +20,14 @@ This document outlines the steps to deploy the ExpenseSplit stack:
    - **Environment**: `Node`
    - **Build Command**: `npm install && npm run build && npm run db:push` (This ensures Drizzle pushes your schema to Neon during deployment).
    - **Start Command**: `npm run start:prod`
-4. **Environment Variables**:
+4. **Required Environment Variables (CRITICAL)**:
    - `DATABASE_URL`: Your Neon connection string.
    - `JWT_SECRET`: A strong random string for signing JWT tokens.
    - `GOOGLE_CLIENT_ID`: Your Google OAuth Client ID.
    - `GOOGLE_CLIENT_SECRET`: Your Google OAuth Client Secret.
    - `GOOGLE_CALLBACK_URL`: `https://<YOUR-RENDER-URL>.onrender.com/api/v1/auth/google/callback`
-   - `FRONTEND_URL`: `https://<YOUR-VERCEL-URL>.vercel.app`
+   - `FRONTEND_URL`: `https://<YOUR-VERCEL-URL>.vercel.app` (or whatever domain Vercel issues you).
+   - `ENABLE_OPENTELEMETRY`: `false` (Unless you have configured a trace collector).
 5. Deploy the service and copy the Render URL.
 6. **Important**: Go back to your Google Cloud Console and update your **Authorized Redirect URIs** to include your new Render callback URL.
 
@@ -37,7 +40,7 @@ This document outlines the steps to deploy the ExpenseSplit stack:
    - **Build Command**: `npm run build`
    - **Output Directory**: `dist`
 4. **Environment Variables**:
-   - `VITE_API_BASE_URL`: `https://<YOUR-RENDER-URL>.onrender.com`
+   - `VITE_API_BASE_URL`: `https://<YOUR-RENDER-URL>.onrender.com/api/v1` (Note: we updated the frontend to dynamically use this environment variable for all API calls if present, overriding the local `/api/v1` proxy logic).
 5. Deploy the project.
 6. **Important**: Go back to your Google Cloud Console and update your **Authorized JavaScript Origins** to include your new Vercel URL.
 

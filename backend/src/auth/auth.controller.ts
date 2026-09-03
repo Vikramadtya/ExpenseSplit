@@ -23,7 +23,7 @@ export class AuthController {
     const jwt = await this.authService.validateOAuthLogin(req.user);
 
     // Redirect to frontend with the token
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+    const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
     res.redirect(`${frontendUrl}/auth/callback?token=${jwt}`);
   }
 }

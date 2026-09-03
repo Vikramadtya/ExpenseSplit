@@ -17,6 +17,10 @@ import MembersRoute from './routes/members';
 import ExpensesRoute from './routes/expenses';
 import FriendsRoute from './routes/friends';
 import { client } from './api/client.gen';
+
+if (import.meta.env.VITE_API_BASE_URL) {
+  client.setConfig({ baseUrl: import.meta.env.VITE_API_BASE_URL });
+}
 import { logger } from './utils/logger';
 
 client.interceptors.request.use((request) => {
