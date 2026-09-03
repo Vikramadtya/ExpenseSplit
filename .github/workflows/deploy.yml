@@ -1,0 +1,44 @@
+name: Deploy Production
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy-backend:
+    name: Trigger Render Deployment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke Render Deploy Hook
+        run: |
+          if [ -n "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" ]; then
+            curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+            echo "Render deployment triggered."
+          else
+            echo "Notice: RENDER_DEPLOY_HOOK_URL secret is not set in GitHub repository settings. Skipping Render deployment trigger."
+          fi
+
+  deploy-frontend:
+    name: Trigger Vercel Deployment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to Vercel via CLI Action
+        if: env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
+        uses: amondnet/vercel-action@v20
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          working-directory: ./frontend
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      - name: Skip Notification
+        if: env.VERCEL_TOKEN == ''
+        run: echo "Notice: Vercel secrets (VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID) are not set. Skipping Vercel manual trigger. (Vercel may still auto-deploy via GitHub integration)."
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
