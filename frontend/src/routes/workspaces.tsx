@@ -148,7 +148,7 @@ export default function WorkspacesRoute() {
         <header className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-surface border border-border rounded-lg flex items-center justify-center shadow-lg">
-              <LayoutGrid className="w-5 h-5 text-primary" />
+              <img src="/logo.svg" alt="ExpenseSplit Logo" className="w-6 h-6" />
             </div>
             <div>
               <h1 className="font-display text-2xl font-bold">ExpenseSplit</h1>
