@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { ArrowRight, Wallet, PieChart, Users, Zap, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, PieChart, Users, Zap, CheckCircle2 } from 'lucide-react';
 import { ThemeToggle } from '../features/theme/components/ThemeToggle';
 
 export default function LoginRoute() {
@@ -16,7 +16,7 @@ export default function LoginRoute() {
       <div className="flex-1 p-8 md:p-16 flex flex-col justify-center z-10 hidden lg:flex border-r border-white/10 bg-surface/30 backdrop-blur-sm">
         <div className="max-w-xl mx-auto w-full">
           <div className="w-16 h-16 bg-primary/20 rounded-2xl flex items-center justify-center mb-8 shadow-lg shadow-primary/20 ring-1 ring-white/10">
-            <Wallet className="w-8 h-8 text-primary" />
+            <img src="/logo.svg" alt="ExpenseSplit Logo" className="w-10 h-10 drop-shadow-md" />
           </div>
 
           <h1 className="font-display text-5xl font-bold mb-6 leading-tight">
@@ -79,7 +79,7 @@ export default function LoginRoute() {
           {/* Mobile Header (Hidden on Desktop) */}
           <div className="lg:hidden flex flex-col items-center text-center mb-10">
             <div className="w-16 h-16 bg-primary/20 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-primary/20 ring-1 ring-white/10">
-              <Wallet className="w-8 h-8 text-primary" />
+              <img src="/logo.svg" alt="ExpenseSplit Logo" className="w-10 h-10 drop-shadow-md" />
             </div>
             <h1 className="font-display text-3xl font-bold mb-2">Welcome to ExpenseSplit</h1>
             <p className="text-text-muted">Sign in to manage your shared expenses seamlessly.</p>

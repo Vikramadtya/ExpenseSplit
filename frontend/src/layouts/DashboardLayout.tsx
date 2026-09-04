@@ -1,5 +1,5 @@
 import { Link, useSearch, useLocation } from '@tanstack/react-router';
-import { Home, LayoutGrid, LogOut, BarChart2, List, Users, X } from 'lucide-react';
+import { Home, LogOut, BarChart2, List, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getCurrentUserOptions } from '../api/@tanstack/react-query.gen';
@@ -51,7 +51,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             to="/workspaces"
             className="flex items-center gap-2 hover:opacity-80 transition-opacity mr-4"
           >
-            <LayoutGrid className="w-5 h-5 text-primary" />
+            <img src="/logo.svg" alt="ExpenseSplit Logo" className="w-6 h-6" />
             <span className="font-display font-bold tracking-wide">ExpenseSplit</span>
           </Link>
 
