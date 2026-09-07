@@ -211,42 +211,51 @@ function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
 function BackendHealthCheck() {
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout>;
+
     let toastId: string | undefined;
     let isConnected = false;
 
-    const checkHealth = async (isFirstAttempt = false) => {
-      if (isConnected) return;
-      try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
-        // Clean URL to avoid double slashes
-        const url = baseUrl.endsWith('/') ? baseUrl + 'health' : baseUrl + '/health';
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+    const url = baseUrl.endsWith('/') ? baseUrl + 'health' : baseUrl + '/health';
 
-        const response = await fetch(url);
-        if (response.ok) {
-          isConnected = true;
-          if (toastId) {
-            toast.success('Backend connected!', { id: toastId });
-          }
-          return;
-        }
-      } catch (e) {
-        // Ignore fetch errors during cold start
-      }
-
-      if (isFirstAttempt) {
-        // If the first attempt fails, it means we are in cold-start mode. Show the toast.
-        toastId = toast.loading('Waking up backend server. This may take up to a minute...', {
+    // Trigger loading toast if not connected after 1 second
+    const delayToastTimer = setTimeout(() => {
+      if (!isConnected) {
+        toastId = toast.loading('Waiting for backend server to start. Give it a min...', {
           duration: Infinity,
         });
       }
+    }, 1000);
 
-      timeoutId = setTimeout(() => checkHealth(false), 3000);
+    const checkHealth = async () => {
+      if (isConnected) return;
+      try {
+        const controller = new AbortController();
+        const fetchTimeout = setTimeout(() => controller.abort(), 4000);
+
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(fetchTimeout);
+
+        if (response.ok) {
+          isConnected = true;
+          clearTimeout(delayToastTimer);
+          if (toastId) {
+            toast.success('Backend server is ready!', { id: toastId, duration: 4000 });
+          }
+          return;
+        }
+      } catch (_e) {
+        // Ignore fetch errors during cold start
+      }
+
+      timeoutId = setTimeout(() => checkHealth(), 3000);
     };
 
-    checkHealth(true);
+    checkHealth();
 
     return () => {
       clearTimeout(timeoutId);
+      clearTimeout(delayToastTimer);
       if (toastId && !isConnected) {
         toast.dismiss(toastId);
       }
@@ -264,8 +273,23 @@ function App() {
       <ErrorBoundary FallbackComponent={ErrorFallback}>
         <BackendHealthCheck />
         <Toaster
-          position="bottom-right"
-          toastOptions={{ style: { background: '#333', color: '#fff', borderRadius: '12px' } }}
+          position="top-center"
+          toastOptions={{
+            style: {
+              background: '#334155',
+              color: '#fff',
+              borderRadius: '9999px',
+              fontWeight: 500,
+              padding: '12px 24px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            },
+            success: {
+              iconTheme: {
+                primary: '#22c55e',
+                secondary: '#fff',
+              },
+            },
+          }}
         />
         <RouterProvider router={router} />
       </ErrorBoundary>
