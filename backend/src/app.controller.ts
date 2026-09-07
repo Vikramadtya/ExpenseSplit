@@ -3,7 +3,7 @@ import { DRIZZLE_CLIENT } from './database/database.module';
 import type { DrizzleDb } from './database/database.module';
 import { sql } from 'drizzle-orm';
 
-@Controller()
+@Controller('api/v1')
 export class AppController {
   constructor(@Inject(DRIZZLE_CLIENT) private readonly db: DrizzleDb) {}
 

@@ -8,6 +8,8 @@ import {
 } from '@tanstack/react-router';
 import { ErrorBoundary, type FallbackProps } from 'react-error-boundary';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { Toaster, toast } from 'react-hot-toast';
 
 import LoginRoute from './routes/login';
 import WorkspacesRoute from './routes/workspaces';
@@ -204,12 +206,67 @@ function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
   );
 }
 
+// ─── Backend Health Check ─────────────────────────────────────────────────────
+
+function BackendHealthCheck() {
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+    let toastId: string | undefined;
+    let isConnected = false;
+
+    const checkHealth = async (isFirstAttempt = false) => {
+      if (isConnected) return;
+      try {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+        // Clean URL to avoid double slashes
+        const url = baseUrl.endsWith('/') ? baseUrl + 'health' : baseUrl + '/health';
+
+        const response = await fetch(url);
+        if (response.ok) {
+          isConnected = true;
+          if (toastId) {
+            toast.success('Backend connected!', { id: toastId });
+          }
+          return;
+        }
+      } catch (e) {
+        // Ignore fetch errors during cold start
+      }
+
+      if (isFirstAttempt) {
+        // If the first attempt fails, it means we are in cold-start mode. Show the toast.
+        toastId = toast.loading('Waking up backend server. This may take up to a minute...', {
+          duration: Infinity,
+        });
+      }
+
+      timeoutId = setTimeout(() => checkHealth(false), 3000);
+    };
+
+    checkHealth(true);
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (toastId && !isConnected) {
+        toast.dismiss(toastId);
+      }
+    };
+  }, []);
+
+  return null;
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary FallbackComponent={ErrorFallback}>
+        <BackendHealthCheck />
+        <Toaster
+          position="bottom-right"
+          toastOptions={{ style: { background: '#333', color: '#fff', borderRadius: '12px' } }}
+        />
         <RouterProvider router={router} />
       </ErrorBoundary>
     </QueryClientProvider>
