@@ -1,8 +1,20 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Inject,
+} from '@nestjs/common';
+import { DRIZZLE_CLIENT } from '../../database/database.module';
+import type { DrizzleDb } from '../../database/database.module';
+import { workspaceMembers } from '../../database/schema';
+import { eq, and } from 'drizzle-orm';
 
 @Injectable()
 export class WorkspaceMemberGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean | Promise<boolean> {
+  constructor(@Inject(DRIZZLE_CLIENT) private readonly db: DrizzleDb) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
     const workspaceId = request.headers['x-workspace-id'] || request.params.workspaceId;
@@ -15,18 +27,19 @@ export class WorkspaceMemberGuard implements CanActivate {
       throw new ForbiddenException('Workspace ID is missing');
     }
 
-    // TODO: Connect this to the actual database to verify if `user.id` is a member of `workspaceId`.
-    // Example:
-    // const isMember = await this.db.select().from(workspaceMembers).where(eq(workspaceMembers.userId, user.id));
+    const [member] = await this.db
+      .select()
+      .from(workspaceMembers)
+      .where(
+        and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, user.id)),
+      )
+      .limit(1);
 
-    // For now, we allow access, but the user is securely tied to the request
-    const isMember = true;
-
-    if (isMember) {
+    if (member) {
       request.currentWorkspaceId = workspaceId;
       return true;
     }
 
-    return false;
+    throw new ForbiddenException('You are not a member of this workspace');
   }
 }

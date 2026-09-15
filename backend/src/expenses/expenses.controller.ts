@@ -10,6 +10,7 @@ import {
   HttpCode,
   Req,
   UseGuards,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ExpensesService } from './expenses.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -46,19 +47,19 @@ export class ExpensesController {
   }
 
   @Get('expenses/:id')
-  getExpense(@Param('id') id: string) {
-    // In a real app, this would require checking if the user is a member of the expense's workspace
-    return this.expensesService.findOne('dummy-workspace-id', id);
+  async getExpense(@Param('id') id: string, @Req() req: any) {
+    return this.expensesService.findOneWithUserAccess(id, req.user.id);
   }
 
   @Patch('expenses/:id')
-  updateExpense(@Param('id') id: string, @Body() data: any) {
-    return this.expensesService.update('dummy-workspace-id', id, data);
+  async updateExpense(@Param('id') id: string, @Body() data: any, @Req() req: any) {
+    // Access check is handled inside service
+    return this.expensesService.updateWithUserAccess(id, req.user.id, data);
   }
 
   @Delete('expenses/:id')
   @HttpCode(204)
-  deleteExpense(@Param('id') id: string) {
-    return this.expensesService.remove('dummy-workspace-id', id);
+  async deleteExpense(@Param('id') id: string, @Req() req: any) {
+    return this.expensesService.removeWithUserAccess(id, req.user.id);
   }
 }

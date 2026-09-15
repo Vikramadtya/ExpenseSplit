@@ -7,6 +7,7 @@ export interface IWorkspacesRepository {
   create(data: { name: string; defaultCurrency: string }): Promise<any>;
   addMember(workspaceId: string, userId: string, role?: string): Promise<any>;
   getMembers(workspaceId: string): Promise<any[]>;
+  getActivity(workspaceId: string): Promise<any[]>;
 }
 export const IWorkspacesRepositoryToken = Symbol('IWorkspacesRepository');
 
@@ -17,6 +18,7 @@ export interface IExpensesRepository {
   create(data: any): Promise<any>;
   update(id: string, data: any): Promise<any>;
   delete(id: string): Promise<void>;
+  createSplit(data: any): Promise<any>;
   getSplits(expenseId: string): Promise<any[]>;
 }
 export const IExpensesRepositoryToken = Symbol('IExpensesRepository');

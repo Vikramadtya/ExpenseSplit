@@ -1,13 +1,4 @@
-import {
-  pgTable,
-  uuid,
-  varchar,
-  timestamp,
-  decimal,
-  text,
-  primaryKey,
-  pgEnum,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, timestamp, decimal, text, pgEnum } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // --- ENUMS ---
@@ -142,5 +133,20 @@ export const workspaceMembersRelations = relations(workspaceMembers, ({ one }) =
   user: one(users, {
     fields: [workspaceMembers.userId],
     references: [users.id],
+  }),
+}));
+
+export const settlementsRelations = relations(settlements, ({ one }) => ({
+  payer: one(users, {
+    fields: [settlements.payerId],
+    references: [users.id],
+  }),
+  payee: one(users, {
+    fields: [settlements.payeeId],
+    references: [users.id],
+  }),
+  workspace: one(workspaces, {
+    fields: [settlements.workspaceId],
+    references: [workspaces.id],
   }),
 }));
