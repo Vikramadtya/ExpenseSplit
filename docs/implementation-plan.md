@@ -14,7 +14,7 @@ features depend on correct money math and transactional writes.
 | Phase | State |
 |-------|-------|
 | 0 Foundation and correctness | **Done**: `Money`, strategy registry (EQUAL/EXACT/PERCENTAGE/SHARES), atomic writes, edit recompute + optimistic locking, balances from net positions per currency, keyset pagination + search, migrations, CI tests |
-| 1 Security | **Partly done**: global JWT + workspace-membership guards with roles, global Zod validation, helmet, rate limiting, token moved to URL fragment. **Open:** httpOnly-cookie sessions with refresh rotation (needs the API served same-site as the web app, e.g. a Vercel rewrite), CSRF checks, account deletion/export, dependency/secret scanning |
+| 1 Security | **Mostly done**: global JWT + workspace-membership guards with roles, global Zod validation, helmet, rate limiting, token in URL fragment, **15-minute access tokens + single-use rotating refresh tokens with reuse detection and logout** (no cookies; refresh token lives in `localStorage`). **Open:** account deletion/export, dependency/secret scanning |
 | 2–8 | Not started |
 
 Deviations from the original plan, and why:

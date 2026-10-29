@@ -136,6 +136,26 @@ export const settlements = pgTable(
   (t) => [index('settlements_workspace_idx').on(t.workspaceId)],
 );
 
+/** Single-use refresh tokens; only a SHA-256 hash is stored. `familyId` groups one sign-in's chain. */
+export const refreshTokens = pgTable(
+  'refresh_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    familyId: uuid('family_id').notNull(),
+    tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    revokedAt: timestamp('revoked_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex('refresh_tokens_hash_uq').on(t.tokenHash),
+    index('refresh_tokens_family_idx').on(t.familyId),
+  ],
+);
+
 // --- RELATIONS ---
 
 export const workspacesRelations = relations(workspaces, ({ many }) => ({

@@ -15,6 +15,13 @@
       "when": 1793272869703,
       "tag": "0001_phase0_money_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793273874407,
+      "tag": "0002_refresh_tokens",
+      "breakpoints": true
     }
   ]
 }

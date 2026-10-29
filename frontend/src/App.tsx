@@ -19,27 +19,26 @@ import MembersRoute from './routes/members';
 import ExpensesRoute from './routes/expenses';
 import FriendsRoute from './routes/friends';
 import { client } from './api/client.gen';
+import { getAccessToken, getFreshAccessToken, saveSession } from './auth/session';
 
 if (import.meta.env.VITE_API_BASE_URL) {
   client.setConfig({ baseUrl: import.meta.env.VITE_API_BASE_URL });
 }
 import { logger } from './utils/logger';
 
-client.interceptors.request.use((request) => {
+client.interceptors.request.use(async (request) => {
   logger.debug('API_REQUEST', `${request.method} ${request.url}`);
-  const token = localStorage.getItem('access_token');
-  if (token) {
-    if (request.headers.set) {
-      request.headers.set('Authorization', `Bearer ${token}`);
-    } else {
-      (request.headers as any)['Authorization'] = `Bearer ${token}`;
-    }
-  }
+  const token = await getFreshAccessToken();
+  if (token) request.headers.set('Authorization', `Bearer ${token}`);
   return request;
 });
 
 client.interceptors.response.use((response) => {
   logger.info('API_RESPONSE', `${response.status} ${response.url}`);
+  // The session is gone (revoked or expired): send the user back to sign in.
+  if (response.status === 401 && !getAccessToken() && window.location.pathname !== '/login') {
+    window.location.assign('/login');
+  }
   return response;
 });
 
@@ -49,8 +48,7 @@ const queryClient = new QueryClient();
 
 const requireAuth = () => {
   if (import.meta.env.VITE_BYPASS_AUTH === 'true') return;
-  const token = localStorage.getItem('access_token');
-  if (!token) {
+  if (!getAccessToken()) {
     throw redirect({ to: '/login' });
   }
 };
@@ -82,9 +80,10 @@ const authCallbackRoute = createRoute({
   path: '/auth/callback',
   beforeLoad: ({ location }) => {
     // The API returns the token in the URL fragment so it never reaches servers or logs.
-    const token = new URLSearchParams(location.hash).get('token');
+    const params = new URLSearchParams(location.hash);
+    const token = params.get('token');
     if (!token) throw redirect({ to: '/login' });
-    localStorage.setItem('access_token', token);
+    saveSession(token, params.get('refresh'));
     throw redirect({ to: '/workspaces', replace: true });
   },
 });

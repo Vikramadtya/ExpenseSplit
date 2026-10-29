@@ -15,6 +15,7 @@ import { LayoutGrid, LogOut, X, Users } from 'lucide-react';
 
 import { GlobalOverview } from '../features/workspaces/components/GlobalOverview';
 import { WorkspaceList } from '../features/workspaces/components/WorkspaceList';
+import { signOut } from '../auth/session';
 
 function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('');
@@ -189,7 +190,7 @@ export default function WorkspacesRoute() {
             <Link
               to="/login"
 
-              onClick={() => localStorage.removeItem('access_token')}
+              onClick={signOut}
               className="text-text-muted hover:text-text-main transition-colors flex items-center gap-2 text-sm ml-2"
             >
               <LogOut className="w-4 h-4" />

@@ -5,7 +5,9 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { DRIZZLE_CLIENT } from '../src/database/database.module';
 import type { DrizzleDb } from '../src/database/database.module';
-import { users } from '../src/database/schema';
+import { refreshTokens, users } from '../src/database/schema';
+import { AuthService } from '../src/auth/auth.service';
+import { eq } from 'drizzle-orm';
 
 // Runs against a real, migrated Postgres. Skipped unless TEST_DATABASE_URL is set.
 const url = process.env.TEST_DATABASE_URL;
@@ -213,5 +215,69 @@ suite('ExpenseSplit API (integration)', () => {
 
   it('refuses to remove a member who still has a balance', async () => {
     await api('delete', `/workspaces/${ws}/members/${carol.id}`, alice).expect(400);
+  });
+
+  describe('sessions', () => {
+    const profile = () => ({
+      emails: [{ value: `session-${tag}@test.dev` }],
+      name: { givenName: 'Sam', familyName: 'Session' },
+      photos: [],
+    });
+    const refresh = (refreshToken: string) =>
+      request(app.getHttpServer()).post('/api/v1/auth/refresh').send({ refreshToken });
+
+    it('issues short-lived access tokens that work', async () => {
+      const { accessToken } = await app.get(AuthService).validateOAuthLogin(profile());
+      const { exp, iat } = jwt.decode(accessToken);
+      expect(exp - iat).toBe(15 * 60);
+      await request(app.getHttpServer())
+        .get('/api/v1/users/me')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+    });
+
+    it('rotates refresh tokens, and each works only once', async () => {
+      const first = await app.get(AuthService).validateOAuthLogin(profile());
+      const second = await refresh(first.refreshToken).expect(200);
+      expect(second.body.refreshToken).not.toBe(first.refreshToken);
+      await request(app.getHttpServer())
+        .get('/api/v1/users/me')
+        .set('Authorization', `Bearer ${second.body.accessToken}`)
+        .expect(200);
+      await refresh(first.refreshToken).expect(401);
+    });
+
+    it('revokes the whole chain when an old token is replayed later', async () => {
+      const first = await app.get(AuthService).validateOAuthLogin(profile());
+      const second = await refresh(first.refreshToken).expect(200);
+      // Pretend the rotation happened a minute ago, so the replay isn't a racing tab.
+      await db
+        .update(refreshTokens)
+        .set({ revokedAt: new Date(Date.now() - 60_000) })
+        .where(eq(refreshTokens.revokedAt, refreshTokens.revokedAt));
+      await refresh(first.refreshToken).expect(401);
+      await refresh(second.body.refreshToken).expect(401);
+    });
+
+    it('does not punish a racing tab inside the grace window', async () => {
+      const first = await app.get(AuthService).validateOAuthLogin(profile());
+      const second = await refresh(first.refreshToken).expect(200);
+      await refresh(first.refreshToken).expect(401);
+      await refresh(second.body.refreshToken).expect(200);
+    });
+
+    it('logout revokes the session', async () => {
+      const { refreshToken } = await app.get(AuthService).validateOAuthLogin(profile());
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/logout')
+        .send({ refreshToken })
+        .expect(204);
+      await refresh(refreshToken).expect(401);
+    });
+
+    it('rejects garbage', async () => {
+      await refresh('nope').expect(401);
+      await request(app.getHttpServer()).post('/api/v1/auth/refresh').send({}).expect(400);
+    });
   });
 });
