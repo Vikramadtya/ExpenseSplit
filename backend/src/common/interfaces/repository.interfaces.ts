@@ -8,6 +8,9 @@ export interface IWorkspacesRepository {
   addMember(workspaceId: string, userId: string, role?: string): Promise<any>;
   getMembers(workspaceId: string): Promise<any[]>;
   getActivity(workspaceId: string): Promise<any[]>;
+  update(id: string, data: { name?: string; defaultCurrency?: string }): Promise<any>;
+  delete(id: string): Promise<void>;
+  removeMember(workspaceId: string, userId: string): Promise<void>;
 }
 export const IWorkspacesRepositoryToken = Symbol('IWorkspacesRepository');
 
@@ -29,6 +32,9 @@ export interface IBalancesRepository {
   getExpenseDebts(
     workspaceId: string,
   ): Promise<Array<{ debtor: string; creditor: string; amount: number }>>;
+  getExpenseDebtsByWorkspaces(
+    workspaceIds: string[],
+  ): Promise<Array<{ workspaceId: string; debtor: string; creditor: string; amount: number }>>;
 }
 export const IBalancesRepositoryToken = Symbol('IBalancesRepository');
 
@@ -46,7 +52,16 @@ export const ISettlementsRepositoryToken = Symbol('ISettlementsRepository');
 export interface IUsersRepository {
   findById(id: string): Promise<any>;
   findByEmail(email: string): Promise<any>;
-  create(data: { email: string; name: string; avatarUrl?: string }): Promise<any>;
+  create(data: {
+    email: string;
+    name: string;
+    avatarUrl?: string;
+    isRegistered?: boolean;
+  }): Promise<any>;
+  update(
+    id: string,
+    data: Partial<{ name: string; avatarUrl: string; isRegistered: boolean }>,
+  ): Promise<any>;
   findAll(): Promise<any[]>;
 }
 export const IUsersRepositoryToken = Symbol('IUsersRepository');

@@ -1,7 +1,9 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, Req } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BalancesService } from './balances.service';
 
 @Controller('api/v1')
+@UseGuards(JwtAuthGuard)
 export class BalancesController {
   constructor(private readonly balancesService: BalancesService) {}
 
@@ -11,8 +13,8 @@ export class BalancesController {
   }
 
   @Get('balances')
-  getGlobalBalances() {
-    return this.balancesService.getBalances('');
+  getGlobalBalances(@Req() req: any) {
+    return this.balancesService.getBalances('', req.user.id);
   }
 
   @Get('workspaces/:workspaceId/balances/debts')
@@ -22,7 +24,7 @@ export class BalancesController {
   }
 
   @Get('balances/friends')
-  getFriendsBalances() {
-    return this.balancesService.getFriendsBalances();
+  getFriendsBalances(@Req() req: any) {
+    return this.balancesService.getFriendsBalances(req.user.id);
   }
 }

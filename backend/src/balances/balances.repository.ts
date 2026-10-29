@@ -71,4 +71,36 @@ export class BalancesRepository {
       net: Number(row.net),
     }));
   }
+
+  async getExpenseDebtsByWorkspaces(
+    workspaceIds: string[],
+  ): Promise<Array<{ workspaceId: string; debtor: string; creditor: string; amount: number }>> {
+    if (workspaceIds.length === 0) return [];
+
+    // Convert array to a list of quoted strings for the IN clause
+    const ids = workspaceIds.map((id) => `'${id}'`).join(',');
+
+    const result = await this.db.execute(
+      sql.raw(`
+      SELECT
+        s.workspace_id AS "workspaceId",
+        s.user_id AS debtor,
+        e.created_by_id AS creditor,
+        SUM(s.amount_owed - s.amount_paid) AS amount
+      FROM expense_splits s
+      JOIN expenses e ON s.expense_id = e.id
+      WHERE s.workspace_id IN (${ids})
+        AND s.user_id != e.created_by_id
+      GROUP BY s.workspace_id, s.user_id, e.created_by_id
+      HAVING SUM(s.amount_owed - s.amount_paid) > 0
+    `),
+    );
+
+    return result.map((row) => ({
+      workspaceId: row.workspaceId as string,
+      debtor: row.debtor as string,
+      creditor: row.creditor as string,
+      amount: Number(row.amount),
+    }));
+  }
 }

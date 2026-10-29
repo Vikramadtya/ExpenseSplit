@@ -18,8 +18,29 @@ export class UsersRepository {
     return user || null;
   }
 
-  async create(data: { email: string; name: string; avatarUrl?: string }): Promise<any> {
-    const [user] = await this.db.insert(users).values(data).returning();
+  async create(data: {
+    email: string;
+    name: string;
+    avatarUrl?: string;
+    isRegistered?: boolean;
+  }): Promise<any> {
+    const [user] = await this.db
+      .insert(users)
+      .values({
+        email: data.email,
+        name: data.name,
+        avatarUrl: data.avatarUrl,
+        isRegistered: data.isRegistered ?? true,
+      })
+      .returning();
+    return user;
+  }
+
+  async update(
+    id: string,
+    data: Partial<{ name: string; avatarUrl: string; isRegistered: boolean }>,
+  ): Promise<any> {
+    const [user] = await this.db.update(users).set(data).where(eq(users.id, id)).returning();
     return user;
   }
 

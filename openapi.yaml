@@ -8,7 +8,7 @@ servers:
   description: Main API
 components:
   securitySchemes:
-    cookieAuth:
+    bearerAuth:
       type: apiKey
       in: cookie
       name: session
@@ -443,8 +443,57 @@ components:
           type: string
           format: date-time
 security:
-- cookieAuth: []
+- bearerAuth: []
 paths:
+
+  /workspaces/{workspaceId}/members/{userId}:
+    delete:
+      summary: Remove a member
+      tags:
+      - Workspaces
+      operationId: removeMember
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
+  /settlements/global:
+    post:
+      summary: Record a global cross-workspace settlement
+      tags:
+      - Settlements
+      operationId: createGlobalSettlement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - payeeId
+              - amount
+              properties:
+                payeeId:
+                  type: string
+                  format: uuid
+                amount:
+                  type: number
+                currency:
+                  type: string
+      responses:
+        '201':
+          description: Created
   /users/me:
     get:
       summary: Get current authenticated user
@@ -513,7 +562,9 @@ paths:
                 $ref: '#/components/schemas/Workspace'
   /workspaces/{workspaceId}:
     get:
-      summary: Get workspace by ID
+      summary: Get workspace details
+      tags:
+      - Workspaces
       operationId: getWorkspace
       parameters:
       - name: workspaceId
@@ -524,11 +575,52 @@ paths:
           format: uuid
       responses:
         '200':
-          description: Workspace object
+          description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Workspace'
+    patch:
+      summary: Update workspace
+      tags:
+      - Workspaces
+      operationId: updateWorkspace
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                defaultCurrency:
+                  type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Delete workspace
+      tags:
+      - Workspaces
+      operationId: deleteWorkspace
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
   /workspaces/{workspaceId}/members:
     get:
       summary: List members of a workspace
@@ -666,14 +758,35 @@ paths:
                   - EXACT
                   - PERCENTAGE
                   default: EQUAL
-                paidBy:
-                  type: string
-                  format: uuid
+                payers:
+                  type: array
+                  items:
+                    type: object
+                    required: [userId, amount]
+                    properties:
+                      userId:
+                        type: string
+                        format: uuid
+                      amount:
+                        type: number
+                        format: float
                 participants:
                   type: array
                   items:
                     type: string
                     format: uuid
+                tags:
+                  type: array
+                  items:
+                    type: string
+                type:
+                  type: string
+                  enum: [EXPENSE, TRANSFER]
+                  default: EXPENSE
+                recurringInterval:
+                  type: string
+                  enum: [NONE, DAILY, WEEKLY, MONTHLY]
+                  default: NONE
                 exactAmounts:
                   type: array
                   items:
@@ -760,14 +873,35 @@ paths:
                   - EQUAL
                   - EXACT
                   - PERCENTAGE
-                paidBy:
-                  type: string
-                  format: uuid
+                payers:
+                  type: array
+                  items:
+                    type: object
+                    required: [userId, amount]
+                    properties:
+                      userId:
+                        type: string
+                        format: uuid
+                      amount:
+                        type: number
+                        format: float
                 participants:
                   type: array
                   items:
                     type: string
                     format: uuid
+                tags:
+                  type: array
+                  items:
+                    type: string
+                type:
+                  type: string
+                  enum: [EXPENSE, TRANSFER]
+                  default: EXPENSE
+                recurringInterval:
+                  type: string
+                  enum: [NONE, DAILY, WEEKLY, MONTHLY]
+                  default: NONE
                 exactAmounts:
                   type: array
                   items:

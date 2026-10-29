@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { DRIZZLE_CLIENT } from '../database/database.module';
 import type { DrizzleDb } from '../database/database.module';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { workspaceMembers, workspaces, expenses, settlements } from '../database/schema';
 
 @Injectable()
@@ -104,5 +104,26 @@ export class WorkspacesRepository {
     return activity
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 20);
+  }
+
+  async update(id: string, data: { name?: string; defaultCurrency?: string }): Promise<any> {
+    const [workspace] = await this.db
+      .update(workspaces)
+      .set(data)
+      .where(eq(workspaces.id, id))
+      .returning();
+    return workspace;
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.db.delete(workspaces).where(eq(workspaces.id, id));
+  }
+
+  async removeMember(workspaceId: string, userId: string): Promise<void> {
+    await this.db
+      .delete(workspaceMembers)
+      .where(
+        and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)),
+      );
   }
 }

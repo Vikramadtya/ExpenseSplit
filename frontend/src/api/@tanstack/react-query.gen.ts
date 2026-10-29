@@ -5,9 +5,11 @@ import { type DefaultError, queryOptions, type UseMutationOptions } from '@tanst
 import { client } from '../client.gen';
 import {
   createExpense,
+  createGlobalSettlement,
   createSettlement,
   createWorkspace,
   deleteExpense,
+  deleteWorkspace,
   getActivity,
   getAnalytics,
   getBalances,
@@ -25,17 +27,22 @@ import {
   listSettlements,
   listWorkspaceExpenses,
   type Options,
+  removeMember,
   updateExpense,
+  updateWorkspace,
 } from '../sdk.gen';
 import type {
   CreateExpenseData,
   CreateExpenseResponse,
+  CreateGlobalSettlementData,
   CreateSettlementData,
   CreateSettlementResponse,
   CreateWorkspaceData,
   CreateWorkspaceResponse,
   DeleteExpenseData,
   DeleteExpenseResponse,
+  DeleteWorkspaceData,
+  DeleteWorkspaceResponse,
   GetActivityData,
   GetActivityResponse,
   GetAnalyticsData,
@@ -68,9 +75,58 @@ import type {
   ListSettlementsResponse,
   ListWorkspaceExpensesData,
   ListWorkspaceExpensesResponse,
+  RemoveMemberData,
+  RemoveMemberResponse,
   UpdateExpenseData,
   UpdateExpenseResponse,
+  UpdateWorkspaceData,
 } from '../types.gen';
+
+/**
+ * Remove a member
+ */
+export const removeMemberMutation = (
+  options?: Partial<Options<RemoveMemberData>>,
+): UseMutationOptions<RemoveMemberResponse, DefaultError, Options<RemoveMemberData>> => {
+  const mutationOptions: UseMutationOptions<
+    RemoveMemberResponse,
+    DefaultError,
+    Options<RemoveMemberData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await removeMember({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Record a global cross-workspace settlement
+ */
+export const createGlobalSettlementMutation = (
+  options?: Partial<Options<CreateGlobalSettlementData>>,
+): UseMutationOptions<unknown, DefaultError, Options<CreateGlobalSettlementData>> => {
+  const mutationOptions: UseMutationOptions<
+    unknown,
+    DefaultError,
+    Options<CreateGlobalSettlementData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createGlobalSettlement({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
 
 export type QueryKey<TOptions extends Options> = [
   Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -209,11 +265,34 @@ export const createWorkspaceMutation = (
   return mutationOptions;
 };
 
+/**
+ * Delete workspace
+ */
+export const deleteWorkspaceMutation = (
+  options?: Partial<Options<DeleteWorkspaceData>>,
+): UseMutationOptions<DeleteWorkspaceResponse, DefaultError, Options<DeleteWorkspaceData>> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteWorkspaceResponse,
+    DefaultError,
+    Options<DeleteWorkspaceData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteWorkspace({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
 export const getWorkspaceQueryKey = (options: Options<GetWorkspaceData>) =>
   createQueryKey('getWorkspace', options);
 
 /**
- * Get workspace by ID
+ * Get workspace details
  */
 export const getWorkspaceOptions = (options: Options<GetWorkspaceData>) =>
   queryOptions<
@@ -233,6 +312,25 @@ export const getWorkspaceOptions = (options: Options<GetWorkspaceData>) =>
     },
     queryKey: getWorkspaceQueryKey(options),
   });
+
+/**
+ * Update workspace
+ */
+export const updateWorkspaceMutation = (
+  options?: Partial<Options<UpdateWorkspaceData>>,
+): UseMutationOptions<unknown, DefaultError, Options<UpdateWorkspaceData>> => {
+  const mutationOptions: UseMutationOptions<unknown, DefaultError, Options<UpdateWorkspaceData>> = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateWorkspace({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
 
 export const getWorkspaceMembersQueryKey = (options: Options<GetWorkspaceMembersData>) =>
   createQueryKey('getWorkspaceMembers', options);

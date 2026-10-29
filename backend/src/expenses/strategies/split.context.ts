@@ -14,8 +14,8 @@ export class SplitContext {
   public executeSplit(
     totalAmount: number,
     participants: string[],
-    exactAmounts?: { userId: string; amount: number }[],
+    options?: import('./split.strategy').SplitStrategyOptions,
   ): SplitResult[] {
-    return this.strategy.calculateSplits(totalAmount, participants, exactAmounts);
+    return this.strategy.calculateSplits(totalAmount, participants, options);
   }
 }

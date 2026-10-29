@@ -14,7 +14,8 @@ const drizzleProvider = {
   useFactory: (config: ConfigService) => {
     const url = config.getOrThrow<string>('DATABASE_URL');
     const client = postgres(url);
-    return drizzle(client, { schema });
+    const enableLogging = config.get('DB_LOGGING') === 'true';
+    return drizzle(client, { schema, logger: enableLogging });
   },
 };
 

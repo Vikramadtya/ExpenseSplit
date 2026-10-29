@@ -7,56 +7,62 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { ZodError } from 'zod';
+import { ZodValidationException } from 'nestjs-zod';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger(GlobalExceptionFilter.name);
+  private readonly logger = new Logger('GlobalExceptionFilter');
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
+    const reqId = String(request.headers['x-request-id'] || 'unknown');
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let title = 'Internal Server Error';
-    let detail = 'An unexpected error occurred.';
-    let type = 'https://expensesplit.app/errors/internal-server-error';
+    let message: any = 'Internal server error';
+    let errorResponse: any = null;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
-      const res = exception.getResponse() as any;
-      title = exception.name;
-      detail = typeof res === 'string' ? res : res.message || res.error || detail;
-      type = `https://expensesplit.app/errors/${status}`;
-    } else if (exception instanceof ZodError) {
+      errorResponse = exception.getResponse();
+      message =
+        typeof errorResponse === 'string' ? errorResponse : errorResponse.message || errorResponse;
+    } else if (exception instanceof ZodValidationException) {
       status = HttpStatus.BAD_REQUEST;
-      title = 'Validation Error';
-      detail = (exception as any).errors
-        .map((e: any) => `${e.path.join('.')}: ${e.message}`)
-        .join(', ');
-      type = 'https://expensesplit.app/errors/validation-error';
+      message = 'Validation failed';
+      errorResponse = (exception as any).getZodError().errors;
+    } else if (exception instanceof Error) {
+      message = exception.message;
     }
 
-    const problemDetail = {
-      type,
-      title,
+    const logPayload = {
+      reqId,
+      timestamp: new Date().toISOString(),
+      path: request.url,
+      method: request.method,
       status,
-      detail,
-      instance: request.url,
-      requestId: (request as any).id || 'unknown',
-      // traceId: (request as any).traceId || 'unknown', // Set by tracing interceptor
+      message,
+      stack: exception instanceof Error ? exception.stack : undefined,
     };
 
     if (status >= 500) {
       this.logger.error(
-        `[${request.method}] ${request.url} - ${status} - ${detail}`,
-        exception instanceof Error ? exception.stack : String(exception),
+        `[ERR] ${status} - ${request.method} ${request.url} - ${reqId}\n${JSON.stringify(logPayload, null, 2)}`,
       );
     } else {
-      this.logger.warn(`[${request.method}] ${request.url} - ${status} - ${detail}`);
+      this.logger.warn(
+        `[WARN] ${status} - ${request.method} ${request.url} - ${reqId} - ${JSON.stringify(message)}`,
+      );
     }
 
-    response.status(status).json(problemDetail);
+    response.status(status).json({
+      statusCode: status,
+      timestamp: logPayload.timestamp,
+      path: request.url,
+      message: message,
+      requestId: reqId,
+      details: status === 400 && errorResponse ? errorResponse : undefined,
+    });
   }
 }

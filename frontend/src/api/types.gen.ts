@@ -150,6 +150,43 @@ export type CreateSettlementDto = {
   date?: string;
 };
 
+export type RemoveMemberData = {
+  body?: never;
+  path: {
+    workspaceId: string;
+    userId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/members/{userId}';
+};
+
+export type RemoveMemberResponses = {
+  /**
+   * No Content
+   */
+  204: void;
+};
+
+export type RemoveMemberResponse = RemoveMemberResponses[keyof RemoveMemberResponses];
+
+export type CreateGlobalSettlementData = {
+  body: {
+    payeeId: string;
+    amount: number;
+    currency?: string;
+  };
+  path?: never;
+  query?: never;
+  url: '/settlements/global';
+};
+
+export type CreateGlobalSettlementResponses = {
+  /**
+   * Created
+   */
+  201: unknown;
+};
+
 export type GetCurrentUserData = {
   body?: never;
   path?: never;
@@ -219,6 +256,24 @@ export type CreateWorkspaceResponses = {
 
 export type CreateWorkspaceResponse = CreateWorkspaceResponses[keyof CreateWorkspaceResponses];
 
+export type DeleteWorkspaceData = {
+  body?: never;
+  path: {
+    workspaceId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}';
+};
+
+export type DeleteWorkspaceResponses = {
+  /**
+   * No Content
+   */
+  204: void;
+};
+
+export type DeleteWorkspaceResponse = DeleteWorkspaceResponses[keyof DeleteWorkspaceResponses];
+
 export type GetWorkspaceData = {
   body?: never;
   path: {
@@ -230,12 +285,31 @@ export type GetWorkspaceData = {
 
 export type GetWorkspaceResponses = {
   /**
-   * Workspace object
+   * OK
    */
   200: Workspace;
 };
 
 export type GetWorkspaceResponse = GetWorkspaceResponses[keyof GetWorkspaceResponses];
+
+export type UpdateWorkspaceData = {
+  body: {
+    name?: string;
+    defaultCurrency?: string;
+  };
+  path: {
+    workspaceId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}';
+};
+
+export type UpdateWorkspaceResponses = {
+  /**
+   * OK
+   */
+  200: unknown;
+};
 
 export type GetWorkspaceMembersData = {
   body?: never;
@@ -310,8 +384,14 @@ export type CreateExpenseData = {
     amount: number;
     date: string;
     splitType: 'EQUAL' | 'EXACT' | 'PERCENTAGE';
-    paidBy: string;
+    payers?: Array<{
+      userId: string;
+      amount: number;
+    }>;
     participants: Array<string>;
+    tags?: Array<string>;
+    type?: 'EXPENSE' | 'TRANSFER';
+    recurringInterval?: 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY';
     exactAmounts?: Array<{
       userId: string;
       amount: number;
@@ -381,8 +461,14 @@ export type UpdateExpenseData = {
     amount?: number;
     date?: string;
     splitType?: 'EQUAL' | 'EXACT' | 'PERCENTAGE';
-    paidBy?: string;
+    payers?: Array<{
+      userId: string;
+      amount: number;
+    }>;
     participants?: Array<string>;
+    tags?: Array<string>;
+    type?: 'EXPENSE' | 'TRANSFER';
+    recurringInterval?: 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY';
     exactAmounts?: Array<{
       userId?: string;
       amount?: number;

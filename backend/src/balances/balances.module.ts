@@ -2,12 +2,13 @@ import { IBalancesRepositoryToken } from '../common/interfaces/repository.interf
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
+import { UsersModule } from '../users/users.module';
 import { BalancesController } from './balances.controller';
 import { BalancesService } from './balances.service';
 import { BalancesRepository } from './balances.repository';
 
 @Module({
-  imports: [DatabaseModule, WorkspacesModule],
+  imports: [DatabaseModule, WorkspacesModule, UsersModule],
   controllers: [BalancesController],
   providers: [BalancesService, { provide: IBalancesRepositoryToken, useClass: BalancesRepository }],
   exports: [BalancesService],

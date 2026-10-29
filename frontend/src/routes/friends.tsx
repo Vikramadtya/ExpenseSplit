@@ -1,11 +1,42 @@
-import { useQuery } from '@tanstack/react-query';
-import { getFriendsBalancesOptions } from '../api/@tanstack/react-query.gen';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  getFriendsBalancesOptions,
+  createGlobalSettlementMutation,
+} from '../api/@tanstack/react-query.gen';
 import DashboardLayout from '../layouts/DashboardLayout';
-import { Users, CheckCircle2 } from 'lucide-react';
+import { Users, CheckCircle2, Wallet } from 'lucide-react';
 import { formatCurrency } from '../utils/currency';
+import toast from 'react-hot-toast';
+import { useState } from 'react';
 
 export default function FriendsRoute() {
+  const queryClient = useQueryClient();
   const { data: friends = [], isLoading } = useQuery(getFriendsBalancesOptions());
+  const [settlingFriend, setSettlingFriend] = useState<string | null>(null);
+
+  const settleMutation = useMutation({
+    ...createGlobalSettlementMutation(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['getFriendsBalances'] });
+      toast.success('Successfully settled globally!');
+      setSettlingFriend(null);
+    },
+    onError: () => {
+      toast.error('Failed to settle. Please try again.');
+      setSettlingFriend(null);
+    },
+  });
+
+  const handleSettle = (friendId: string, amount: number, currency: string) => {
+    setSettlingFriend(friendId);
+    settleMutation.mutate({
+      body: {
+        payeeId: friendId,
+        amount: Math.abs(amount),
+        currency,
+      },
+    });
+  };
 
   return (
     <DashboardLayout>
@@ -42,7 +73,7 @@ export default function FriendsRoute() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {friends.map((friend: any) => (
               <div
-                key={friend.userId}
+                key={`${friend.userId}-${friend.currency}`}
                 className="flex flex-col sm:flex-row sm:items-center justify-between p-5 bg-surface rounded-2xl border border-border shadow-sm gap-4 hover:border-primary/50 transition-colors"
               >
                 <div className="flex items-center gap-4">
@@ -54,7 +85,7 @@ export default function FriendsRoute() {
                     />
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
-                      {friend.name.charAt(0)}
+                      {friend.name.charAt(0).toUpperCase()}
                     </div>
                   )}
                   <div>
@@ -71,12 +102,27 @@ export default function FriendsRoute() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end">
+                <div className="flex items-center justify-end gap-4">
                   <span
                     className={`text-xl font-bold ${friend.netBalance > 0 ? 'text-emerald-600 dark:text-emerald-400' : friend.netBalance < 0 ? 'text-orange-600 dark:text-orange-400' : 'text-text-main'}`}
                   >
                     {formatCurrency(Math.abs(friend.netBalance), friend.currency || 'USD')}
                   </span>
+
+                  {friend.netBalance < 0 && (
+                    <button
+                      onClick={() =>
+                        handleSettle(friend.userId, friend.netBalance, friend.currency || 'USD')
+                      }
+                      disabled={settleMutation.isPending && settlingFriend === friend.userId}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                    >
+                      <Wallet className="w-4 h-4" />
+                      {settleMutation.isPending && settlingFriend === friend.userId
+                        ? '...'
+                        : 'Settle'}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

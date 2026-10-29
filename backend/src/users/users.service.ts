@@ -20,9 +20,26 @@ export class UsersService {
   async findOrCreate(data: { email: string; name: string; avatarUrl?: string }) {
     let user = await this.usersRepository.findByEmail(data.email);
     if (!user) {
-      user = await this.usersRepository.create(data);
+      user = await this.usersRepository.create({ ...data, isRegistered: true });
+    } else if (!user.isRegistered) {
+      // The user was a shadow user, now they are truly logging in. Claim the account.
+      user = await this.usersRepository.update(user.id, {
+        name: data.name,
+        avatarUrl: data.avatarUrl,
+        isRegistered: true,
+      });
     }
     return user;
+  }
+
+  async createShadowUser(email: string, name?: string) {
+    // Determine a name if not provided
+    const defaultName = name || email.split('@')[0];
+    return this.usersRepository.create({
+      email,
+      name: defaultName,
+      isRegistered: false,
+    });
   }
 
   async findAll() {

@@ -1,4 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
+import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -13,6 +15,12 @@ import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
+    PrometheusModule.register({
+      path: '/metrics',
+      defaultMetrics: {
+        enabled: true,
+      },
+    }),
     ConfigModule.forRoot({ isGlobal: true }),
     DatabaseModule,
     UsersModule,
@@ -26,4 +34,8 @@ import { AnalyticsModule } from './analytics/analytics.module';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}

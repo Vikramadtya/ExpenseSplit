@@ -5,8 +5,9 @@ export class ExactSplitStrategy implements SplitStrategy {
   calculateSplits(
     totalAmount: number,
     participants: string[],
-    exactAmounts?: { userId: string; amount: number }[],
+    options?: import('./split.strategy').SplitStrategyOptions,
   ): SplitResult[] {
+    const exactAmounts = options?.exactAmounts;
     if (!exactAmounts || exactAmounts.length === 0) {
       throw new BadRequestException('Exact amounts must be provided for an exact split.');
     }

@@ -5,12 +5,16 @@ import { client } from './client.gen';
 import type {
   CreateExpenseData,
   CreateExpenseResponses,
+  CreateGlobalSettlementData,
+  CreateGlobalSettlementResponses,
   CreateSettlementData,
   CreateSettlementResponses,
   CreateWorkspaceData,
   CreateWorkspaceResponses,
   DeleteExpenseData,
   DeleteExpenseResponses,
+  DeleteWorkspaceData,
+  DeleteWorkspaceResponses,
   GetActivityData,
   GetActivityResponses,
   GetAnalyticsData,
@@ -43,8 +47,12 @@ import type {
   ListSettlementsResponses,
   ListWorkspaceExpensesData,
   ListWorkspaceExpensesResponses,
+  RemoveMemberData,
+  RemoveMemberResponses,
   UpdateExpenseData,
   UpdateExpenseResponses,
+  UpdateWorkspaceData,
+  UpdateWorkspaceResponses,
 } from './types.gen';
 
 export type Options<
@@ -64,6 +72,46 @@ export type Options<
    */
   meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta;
 };
+
+/**
+ * Remove a member
+ */
+export const removeMember = <ThrowOnError extends boolean = false>(
+  options: Options<RemoveMemberData, ThrowOnError>,
+): RequestResult<RemoveMemberResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).delete<RemoveMemberResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/members/{userId}',
+    ...options,
+  });
+
+/**
+ * Record a global cross-workspace settlement
+ */
+export const createGlobalSettlement = <ThrowOnError extends boolean = false>(
+  options: Options<CreateGlobalSettlementData, ThrowOnError>,
+): RequestResult<CreateGlobalSettlementResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).post<CreateGlobalSettlementResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/settlements/global',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
 
 /**
  * Get current authenticated user
@@ -142,7 +190,25 @@ export const createWorkspace = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * Get workspace by ID
+ * Delete workspace
+ */
+export const deleteWorkspace = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteWorkspaceData, ThrowOnError>,
+): RequestResult<DeleteWorkspaceResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).delete<DeleteWorkspaceResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}',
+    ...options,
+  });
+
+/**
+ * Get workspace details
  */
 export const getWorkspace = <ThrowOnError extends boolean = false>(
   options: Options<GetWorkspaceData, ThrowOnError>,
@@ -157,6 +223,28 @@ export const getWorkspace = <ThrowOnError extends boolean = false>(
     ],
     url: '/workspaces/{workspaceId}',
     ...options,
+  });
+
+/**
+ * Update workspace
+ */
+export const updateWorkspace = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateWorkspaceData, ThrowOnError>,
+): RequestResult<UpdateWorkspaceResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).patch<UpdateWorkspaceResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
   });
 
 /**

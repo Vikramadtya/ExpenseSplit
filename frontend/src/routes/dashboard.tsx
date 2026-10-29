@@ -7,6 +7,8 @@ import DashboardLayout from '../layouts/DashboardLayout';
 import { AddExpenseModal } from '../features/expenses/components/AddExpenseModal';
 import { EditExpenseModal } from '../features/expenses/components/EditExpenseModal';
 import { InviteMemberModal } from '../features/workspaces/components/InviteMemberModal';
+import { WorkspaceSettingsModal } from '../features/workspaces/components/WorkspaceSettingsModal';
+import { Settings } from 'lucide-react';
 import { DebtSimplificationPanel } from '../features/balances/components/DebtSimplificationPanel';
 import { Plus, UserPlus, BarChart2, Users, Activity } from 'lucide-react';
 import { RecentActivity } from '../features/workspaces/components/RecentActivity';
@@ -23,6 +25,7 @@ export default function DashboardRoute({ workspaceId }: { workspaceId: string })
 
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<any | null>(null);
 
   const [selectedCurrency, setSelectedCurrency] = useState<string>('');
@@ -73,6 +76,13 @@ export default function DashboardRoute({ workspaceId }: { workspaceId: string })
             <Users className="w-4 h-4" />
             <span className="hidden sm:inline">Members</span>
           </Link>
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex items-center gap-2 bg-surface border border-border text-text-muted hover:text-text-main font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+          >
+            <Settings className="w-4 h-4" />
+            <span className="hidden sm:inline">Settings</span>
+          </button>
           <button
             onClick={() => setIsInviteOpen(true)}
             className="flex items-center gap-2 bg-surface border border-border text-text-muted hover:text-text-main font-medium py-2 px-4 rounded-lg transition-colors text-sm"
@@ -192,6 +202,11 @@ export default function DashboardRoute({ workspaceId }: { workspaceId: string })
         isOpen={isInviteOpen}
         onClose={() => setIsInviteOpen(false)}
         workspaceId={workspaceId}
+      />
+      <WorkspaceSettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        workspace={workspace}
       />
     </DashboardLayout>
   );

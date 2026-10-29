@@ -125,12 +125,12 @@ export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId 
         amount: Number(amount),
         date,
         splitType,
-        groupId: workspaceId,
         payers,
         category,
         tags,
         currency,
         type: 'EXPENSE',
+        participants,
         exactAmounts:
           splitType === 'EXACT'
             ? Object.entries(exactAmounts).map(([userId, amount]) => ({ userId, amount }))
@@ -139,7 +139,7 @@ export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId 
           splitType === 'PERCENTAGE'
             ? Object.entries(percentages).map(([userId, percentage]) => ({ userId, percentage }))
             : undefined,
-      } as any,
+      },
     });
 
     queryClient.invalidateQueries();

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   inviteMemberMutation,
   getWorkspaceMembersOptions,
+  getWorkspaceMembersQueryKey,
 } from '../../../api/@tanstack/react-query.gen';
 import { X, Mail, UserPlus, Check } from 'lucide-react';
 
@@ -23,7 +24,9 @@ export function InviteMemberModal({ isOpen, onClose, workspaceId }: Props) {
   const inviteMutation = useMutation({
     ...inviteMemberMutation(),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workspace-members'] });
+      queryClient.invalidateQueries({
+        queryKey: getWorkspaceMembersQueryKey({ path: { workspaceId } }),
+      });
       setIsSuccess(true);
       setEmail('');
       setTimeout(() => {

@@ -1,4 +1,13 @@
-import { pgTable, uuid, varchar, timestamp, decimal, text, pgEnum } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  varchar,
+  timestamp,
+  decimal,
+  text,
+  pgEnum,
+  boolean,
+} from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // --- ENUMS ---
@@ -20,6 +29,7 @@ export const users = pgTable('users', {
   email: varchar('email', { length: 255 }).notNull().unique(),
   name: varchar('name', { length: 255 }).notNull(),
   avatarUrl: text('avatar_url'),
+  isRegistered: boolean('is_registered').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

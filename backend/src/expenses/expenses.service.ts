@@ -18,6 +18,7 @@ import {
 import { SplitContext } from './strategies/split.context';
 import { EqualSplitStrategy } from './strategies/equal-split.strategy';
 import { ExactSplitStrategy } from './strategies/exact-split.strategy';
+import { PercentageSplitStrategy } from './strategies/percentage-split.strategy';
 
 @Injectable()
 export class ExpensesService {
@@ -44,10 +45,13 @@ export class ExpensesService {
     if (data.splitType === 'EXACT') {
       context.setStrategy(new ExactSplitStrategy());
     } else if (data.splitType === 'PERCENTAGE') {
-      throw new BadRequestException('Percentage split strategy is not implemented yet.');
+      context.setStrategy(new PercentageSplitStrategy());
     }
 
-    const splits = context.executeSplit(data.amount, participants, data.exactAmounts);
+    const splits = context.executeSplit(data.amount, participants, {
+      exactAmounts: data.exactAmounts,
+      percentages: data.percentages,
+    });
 
     const newExpense = await this.expensesRepository.create({
       workspaceId,
