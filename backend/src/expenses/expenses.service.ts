@@ -25,6 +25,7 @@ import type { SplitInput, SplitType } from './strategies/split.strategy';
 import { buildSplitRows } from './split-builder';
 import { EventBus } from '../common/events/event-bus';
 import { NotificationsService } from '../notifications/notifications.service';
+import { BudgetsService } from '../budgets/budgets.service';
 
 export interface ExpenseListQuery {
   q?: string;
@@ -72,6 +73,7 @@ export class ExpensesService {
     private readonly strategies: SplitStrategyRegistry,
     private readonly events: EventBus,
     private readonly notifications: NotificationsService,
+    private readonly budgets: BudgetsService,
   ) {}
 
   /** Throws if this expense could not be saved (bad split, non-members...), without saving it. */
@@ -120,6 +122,7 @@ export class ExpensesService {
       rows,
     );
     this.emit('expense.created', created, createdById);
+    this.budgets.checkLater(created);
     this.notifications.notifyLater(
       created.splits.map((s: { userId: string }) => s.userId),
       {
@@ -227,6 +230,7 @@ export class ExpensesService {
     this.assertCanModify(expense, userId, role);
     const updated = await this.update(expense.workspaceId, expenseId, data);
     this.emit('expense.updated', expense, userId);
+    this.budgets.checkLater(updated);
     return updated;
   }
 
@@ -244,6 +248,7 @@ export class ExpensesService {
     this.assertCanModify(expense, userId, role);
     await this.expensesRepository.restore(expenseId);
     this.emit('expense.restored', expense, userId);
+    this.budgets.checkLater(expense);
     return this.findOne(expense.workspaceId, expenseId);
   }
 

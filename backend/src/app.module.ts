@@ -25,6 +25,8 @@ import { PaymentsModule } from './payments/payments.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { RecurringModule } from './recurring/recurring.module';
 import { ReceiptsModule } from './receipts/receipts.module';
+import { BudgetsModule } from './budgets/budgets.module';
+import { DataTransferModule } from './data-transfer/data-transfer.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { WorkspaceMemberGuard } from './auth/guards/workspace-member.guard';
 import { MetricsController } from './common/metrics.controller';
@@ -63,6 +65,8 @@ import { MetricsController } from './common/metrics.controller';
     NotificationsModule,
     RecurringModule,
     ReceiptsModule,
+    BudgetsModule,
+    DataTransferModule,
   ],
   controllers: [AppController],
   providers: [

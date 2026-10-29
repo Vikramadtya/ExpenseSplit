@@ -20,6 +20,9 @@ export function configureApp(app: NestExpressApplication) {
     allowedHeaders: ALLOWED_REQUEST_HEADERS,
   });
 
+  // Splitwise exports arrive as plain text.
+  app.useBodyParser('text', { type: 'text/csv', limit: '2mb' });
+
   // Receipt photos are uploaded as raw bytes (no multipart parsing, nothing buffered twice).
   app.useBodyParser('raw', { type: ['image/jpeg', 'image/png', 'image/webp'], limit: '8mb' });
 }

@@ -78,13 +78,45 @@ export type RecurringRule = {
   };
 };
 
+export type Receipt = {
+  id: string;
+  status: 'PROCESSING' | 'DONE' | 'FAILED';
+  error?: string | null;
+  result?: {
+    merchant?: string | null;
+    date?: string | null;
+    currency?: string | null;
+    items?: Array<{
+      name?: string;
+      amount?: number;
+    }>;
+    tax?: number;
+    tip?: number;
+    total?: number;
+    mismatch?: boolean;
+    suggestedCategory?: string;
+  } | null;
+};
+
+export type Budget = {
+  id: string;
+  category: string;
+  currency: string;
+  amount: number;
+  /**
+   * Spent this month
+   */
+  spent: number;
+  percent: number;
+};
+
 export type Expense = {
   id: string;
   workspaceId: string;
   description: string;
   amount: number;
   date: string;
-  splitType: 'EQUAL' | 'EXACT' | 'PERCENTAGE' | 'SHARES';
+  splitType: 'EQUAL' | 'EXACT' | 'PERCENTAGE' | 'SHARES' | 'ITEMIZED';
   paidBy: string;
   createdAt: string;
   splits?: Array<ExpenseSplit>;
@@ -169,6 +201,11 @@ export type Analytics = {
     paid: number;
     todaySpend: number;
     thisMonthSpend: number;
+    lastMonthSpend?: number;
+    /**
+     * Percent change of this month's spending against last month's
+     */
+    monthOverMonthChange?: number | null;
     tagsAnalysis?: Array<{
       tag?: string;
       total?: number;
@@ -185,7 +222,7 @@ export type CreateExpenseDto = {
   description: string;
   amount: number;
   date: string;
-  splitType: 'EQUAL' | 'EXACT' | 'PERCENTAGE' | 'SHARES';
+  splitType: 'EQUAL' | 'EXACT' | 'PERCENTAGE' | 'SHARES' | 'ITEMIZED';
   groupId: string;
   category?: string;
   currency?: string;
@@ -532,7 +569,7 @@ export type CreateExpenseData = {
     description: string;
     amount: number;
     date: string;
-    splitType: 'EQUAL' | 'EXACT' | 'PERCENTAGE' | 'SHARES';
+    splitType: 'EQUAL' | 'EXACT' | 'PERCENTAGE' | 'SHARES' | 'ITEMIZED';
     payers?: Array<{
       userId: string;
       amount: number;
@@ -545,7 +582,6 @@ export type CreateExpenseData = {
       userId: string;
       amount: number;
     }>;
-    category: string;
     percentages?: Array<{
       userId: string;
       percentage: number;
@@ -554,6 +590,20 @@ export type CreateExpenseData = {
       userId: string;
       shares: number;
     }>;
+    /**
+     * One of the built-in categories; unknown values become Other
+     */
+    category: string;
+    /**
+     * ITEMIZED only. Each line is split between its assignees.
+     */
+    items?: Array<{
+      name: string;
+      amount: number;
+      assignees: Array<string>;
+    }>;
+    tax?: number;
+    tip?: number;
     currency: string;
   };
   path: {
@@ -613,7 +663,7 @@ export type UpdateExpenseData = {
     description?: string;
     amount?: number;
     date?: string;
-    splitType?: 'EQUAL' | 'EXACT' | 'PERCENTAGE' | 'SHARES';
+    splitType?: 'EQUAL' | 'EXACT' | 'PERCENTAGE' | 'SHARES' | 'ITEMIZED';
     payers?: Array<{
       userId: string;
       amount: number;
@@ -1103,6 +1153,43 @@ export type SkipRecurringResponses = {
 
 export type SkipRecurringResponse = SkipRecurringResponses[keyof SkipRecurringResponses];
 
+export type UploadReceiptData = {
+  body: Blob | File;
+  path: {
+    workspaceId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/receipts';
+};
+
+export type UploadReceiptResponses = {
+  /**
+   * Accepted; poll the receipt until it is DONE or FAILED
+   */
+  202: Receipt;
+};
+
+export type UploadReceiptResponse = UploadReceiptResponses[keyof UploadReceiptResponses];
+
+export type GetReceiptData = {
+  body?: never;
+  path: {
+    workspaceId: string;
+    receiptId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/receipts/{receiptId}';
+};
+
+export type GetReceiptResponses = {
+  /**
+   * Receipt
+   */
+  200: Receipt;
+};
+
+export type GetReceiptResponse = GetReceiptResponses[keyof GetReceiptResponses];
+
 export type GetBalancesData = {
   body?: never;
   path: {
@@ -1191,12 +1278,100 @@ export type CreateSettlementResponses = {
 
 export type CreateSettlementResponse = CreateSettlementResponses[keyof CreateSettlementResponses];
 
-export type GetAnalyticsData = {
+export type ListTagsData = {
   body?: never;
   path: {
     workspaceId: string;
   };
   query?: never;
+  url: '/workspaces/{workspaceId}/tags';
+};
+
+export type ListTagsResponses = {
+  /**
+   * Tags with usage counts
+   */
+  200: Array<{
+    tag: string;
+    count: number;
+  }>;
+};
+
+export type ListTagsResponse = ListTagsResponses[keyof ListTagsResponses];
+
+export type ListBudgetsData = {
+  body?: never;
+  path: {
+    workspaceId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/budgets';
+};
+
+export type ListBudgetsResponses = {
+  /**
+   * Budgets
+   */
+  200: Array<Budget>;
+};
+
+export type ListBudgetsResponse = ListBudgetsResponses[keyof ListBudgetsResponses];
+
+export type SetBudgetData = {
+  body: {
+    category?: string;
+    currency: string;
+    amount: number;
+  };
+  path: {
+    workspaceId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/budgets';
+};
+
+export type SetBudgetResponses = {
+  /**
+   * The budget
+   */
+  200: Budget;
+};
+
+export type SetBudgetResponse = SetBudgetResponses[keyof SetBudgetResponses];
+
+export type DeleteBudgetData = {
+  body?: never;
+  path: {
+    workspaceId: string;
+    budgetId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/budgets/{budgetId}';
+};
+
+export type DeleteBudgetResponses = {
+  /**
+   * Removed
+   */
+  204: void;
+};
+
+export type DeleteBudgetResponse = DeleteBudgetResponses[keyof DeleteBudgetResponses];
+
+export type GetAnalyticsData = {
+  body?: never;
+  path: {
+    workspaceId: string;
+  };
+  query?: {
+    from?: string;
+    to?: string;
+    currency?: string;
+    /**
+     * Bucket size for spendOverTime
+     */
+    groupBy?: 'day' | 'week' | 'month';
+  };
   url: '/workspaces/{workspaceId}/analytics';
 };
 

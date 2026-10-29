@@ -19,6 +19,8 @@ import type {
   CreateSettlementResponses,
   CreateWorkspaceData,
   CreateWorkspaceResponses,
+  DeleteBudgetData,
+  DeleteBudgetResponses,
   DeleteCommentData,
   DeleteCommentResponses,
   DeleteExpenseData,
@@ -53,6 +55,8 @@ import type {
   GetPaymentLinksResponses,
   GetPushPublicKeyData,
   GetPushPublicKeyResponses,
+  GetReceiptData,
+  GetReceiptResponses,
   GetUserByIdData,
   GetUserByIdResponses,
   GetWorkspaceData,
@@ -65,6 +69,8 @@ import type {
   InviteMemberResponses,
   LeaveWorkspaceData,
   LeaveWorkspaceResponses,
+  ListBudgetsData,
+  ListBudgetsResponses,
   ListExpenseCommentsData,
   ListExpenseCommentsResponses,
   ListNotificationsData,
@@ -73,6 +79,8 @@ import type {
   ListRecurringResponses,
   ListSettlementsData,
   ListSettlementsResponses,
+  ListTagsData,
+  ListTagsResponses,
   ListWorkspaceExpensesData,
   ListWorkspaceExpensesResponses,
   MarkAllNotificationsReadData,
@@ -90,6 +98,8 @@ import type {
   RestoreExpenseResponses,
   RevokeInvitesData,
   RevokeInvitesResponses,
+  SetBudgetData,
+  SetBudgetResponses,
   SetRecurringActiveData,
   SetRecurringActiveResponses,
   SkipRecurringData,
@@ -104,6 +114,8 @@ import type {
   UpdateExpenseResponses,
   UpdateWorkspaceData,
   UpdateWorkspaceResponses,
+  UploadReceiptData,
+  UploadReceiptResponses,
 } from './types.gen';
 
 export type Options<
@@ -915,6 +927,47 @@ export const skipRecurring = <ThrowOnError extends boolean = false>(
   });
 
 /**
+ * Upload a receipt photo (raw image bytes); it is scanned in the background
+ */
+export const uploadReceipt = <ThrowOnError extends boolean = false>(
+  options: Options<UploadReceiptData, ThrowOnError>,
+): RequestResult<UploadReceiptResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).post<UploadReceiptResponses, unknown, ThrowOnError>({
+    bodySerializer: null,
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/receipts',
+    ...options,
+    headers: {
+      'Content-Type': 'image/jpeg',
+      ...options.headers,
+    },
+  });
+
+/**
+ * A receipt and what the scanner read from it
+ */
+export const getReceipt = <ThrowOnError extends boolean = false>(
+  options: Options<GetReceiptData, ThrowOnError>,
+): RequestResult<GetReceiptResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).get<GetReceiptResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/receipts/{receiptId}',
+    ...options,
+  });
+
+/**
  * Get net balances for a workspace
  */
 export const getBalances = <ThrowOnError extends boolean = false>(
@@ -988,6 +1041,82 @@ export const createSettlement = <ThrowOnError extends boolean = false>(
       'Content-Type': 'application/json',
       ...options.headers,
     },
+  });
+
+/**
+ * Tags used in a workspace, most used first
+ */
+export const listTags = <ThrowOnError extends boolean = false>(
+  options: Options<ListTagsData, ThrowOnError>,
+): RequestResult<ListTagsResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).get<ListTagsResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/tags',
+    ...options,
+  });
+
+/**
+ * Monthly budgets with how much of each has been used
+ */
+export const listBudgets = <ThrowOnError extends boolean = false>(
+  options: Options<ListBudgetsData, ThrowOnError>,
+): RequestResult<ListBudgetsResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).get<ListBudgetsResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/budgets',
+    ...options,
+  });
+
+/**
+ * Set a monthly budget for a category (or ALL); admins only
+ */
+export const setBudget = <ThrowOnError extends boolean = false>(
+  options: Options<SetBudgetData, ThrowOnError>,
+): RequestResult<SetBudgetResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).put<SetBudgetResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/budgets',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Remove a budget; admins only
+ */
+export const deleteBudget = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteBudgetData, ThrowOnError>,
+): RequestResult<DeleteBudgetResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).delete<DeleteBudgetResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/budgets/{budgetId}',
+    ...options,
   });
 
 /**

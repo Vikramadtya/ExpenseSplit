@@ -346,6 +346,29 @@ export const receipts = pgTable(
   (t) => [index('receipts_workspace_idx').on(t.workspaceId, t.createdAt)],
 );
 
+/** A monthly spending limit for the whole workspace, or for one category. */
+export const budgets = pgTable(
+  'budgets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    /** A category name, or 'ALL' for everything. */
+    category: varchar('category', { length: 40 }).notNull().default('ALL'),
+    currency: varchar('currency', { length: 3 }).notNull(),
+    amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+    createdById: uuid('created_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Highest alert threshold (80 or 100) already sent for `lastAlertMonth`, so nobody is nagged twice. */
+    lastAlertPercent: integer('last_alert_percent').notNull().default(0),
+    lastAlertMonth: pgDate('last_alert_month'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex('budgets_scope_uq').on(t.workspaceId, t.category, t.currency)],
+);
+
 // --- RELATIONS ---
 
 export const workspacesRelations = relations(workspaces, ({ many }) => ({

@@ -57,6 +57,13 @@
       "when": 1793294541117,
       "tag": "0007_receipts_and_itemized",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793294917812,
+      "tag": "0008_budgets",
+      "breakpoints": true
     }
   ]
 }

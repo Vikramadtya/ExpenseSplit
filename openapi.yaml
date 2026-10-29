@@ -225,6 +225,24 @@ components:
               type: boolean
             suggestedCategory:
               type: string
+    Budget:
+      type: object
+      required: [id, category, currency, amount, spent, percent]
+      properties:
+        id:
+          type: string
+          format: uuid
+        category:
+          type: string
+        currency:
+          type: string
+        amount:
+          type: number
+        spent:
+          type: number
+          description: Spent this month
+        percent:
+          type: integer
     Expense:
       type: object
       required:
@@ -499,6 +517,12 @@ components:
                 type: number
               thisMonthSpend:
                 type: number
+              lastMonthSpend:
+                type: number
+              monthOverMonthChange:
+                type: number
+                nullable: true
+                description: Percent change of this month's spending against last month's
               tagsAnalysis:
                 type: array
                 items:
@@ -1108,8 +1132,6 @@ paths:
                         format: uuid
                       amount:
                         type: number
-                category:
-                  type: string
                 percentages:
                   type: array
                   items:
@@ -1968,6 +1990,104 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Settlement'
+  /workspaces/{workspaceId}/tags:
+    get:
+      summary: Tags used in a workspace, most used first
+      operationId: listTags
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Tags with usage counts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [tag, count]
+                  properties:
+                    tag:
+                      type: string
+                    count:
+                      type: integer
+  /workspaces/{workspaceId}/budgets:
+    get:
+      summary: Monthly budgets with how much of each has been used
+      operationId: listBudgets
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Budgets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Budget'
+    put:
+      summary: Set a monthly budget for a category (or ALL); admins only
+      operationId: setBudget
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currency, amount]
+              properties:
+                category:
+                  type: string
+                  default: ALL
+                currency:
+                  type: string
+                amount:
+                  type: number
+      responses:
+        '200':
+          description: The budget
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+  /workspaces/{workspaceId}/budgets/{budgetId}:
+    delete:
+      summary: Remove a budget; admins only
+      operationId: deleteBudget
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: budgetId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: Removed
   /workspaces/{workspaceId}/analytics:
     get:
       summary: Get spending analytics for a workspace
@@ -1979,6 +2099,27 @@ paths:
         schema:
           type: string
           format: uuid
+      - name: from
+        in: query
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        schema:
+          type: string
+          format: date-time
+      - name: currency
+        in: query
+        schema:
+          type: string
+      - name: groupBy
+        in: query
+        description: Bucket size for spendOverTime
+        schema:
+          type: string
+          enum: [day, week, month]
+          default: day
       responses:
         '200':
           description: Analytics data

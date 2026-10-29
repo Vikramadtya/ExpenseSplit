@@ -18,6 +18,7 @@ import {
   createRecurring,
   createSettlement,
   createWorkspace,
+  deleteBudget,
   deleteComment,
   deleteExpense,
   deleteRecurring,
@@ -35,16 +36,19 @@ import {
   getGlobalBalances,
   getPaymentLinks,
   getPushPublicKey,
+  getReceipt,
   getUserById,
   getWorkspace,
   getWorkspaceMembers,
   getWorkspaces,
   inviteMember,
   leaveWorkspace,
+  listBudgets,
   listExpenseComments,
   listNotifications,
   listRecurring,
   listSettlements,
+  listTags,
   listWorkspaceExpenses,
   markAllNotificationsRead,
   markNotificationRead,
@@ -54,6 +58,7 @@ import {
   removeMember,
   restoreExpense,
   revokeInvites,
+  setBudget,
   setRecurringActive,
   skipRecurring,
   subscribePush,
@@ -61,6 +66,7 @@ import {
   updateCurrentUser,
   updateExpense,
   updateWorkspace,
+  uploadReceipt,
 } from '../sdk.gen';
 import type {
   AcceptInviteData,
@@ -78,6 +84,8 @@ import type {
   CreateSettlementResponse,
   CreateWorkspaceData,
   CreateWorkspaceResponse,
+  DeleteBudgetData,
+  DeleteBudgetResponse,
   DeleteCommentData,
   DeleteCommentResponse,
   DeleteExpenseData,
@@ -112,6 +120,8 @@ import type {
   GetPaymentLinksResponse,
   GetPushPublicKeyData,
   GetPushPublicKeyResponse,
+  GetReceiptData,
+  GetReceiptResponse,
   GetUserByIdData,
   GetUserByIdResponse,
   GetWorkspaceData,
@@ -124,6 +134,8 @@ import type {
   InviteMemberResponse,
   LeaveWorkspaceData,
   LeaveWorkspaceResponse,
+  ListBudgetsData,
+  ListBudgetsResponse,
   ListExpenseCommentsData,
   ListExpenseCommentsResponse,
   ListNotificationsData,
@@ -132,6 +144,8 @@ import type {
   ListRecurringResponse,
   ListSettlementsData,
   ListSettlementsResponse,
+  ListTagsData,
+  ListTagsResponse,
   ListWorkspaceExpensesData,
   ListWorkspaceExpensesResponse,
   MarkAllNotificationsReadData,
@@ -147,6 +161,8 @@ import type {
   RestoreExpenseResponse,
   RevokeInvitesData,
   RevokeInvitesResponse,
+  SetBudgetData,
+  SetBudgetResponse,
   SetRecurringActiveData,
   SetRecurringActiveResponse,
   SkipRecurringData,
@@ -160,6 +176,8 @@ import type {
   UpdateExpenseData,
   UpdateExpenseResponse,
   UpdateWorkspaceData,
+  UploadReceiptData,
+  UploadReceiptResponse,
 } from '../types.gen';
 
 /**
@@ -1267,6 +1285,54 @@ export const skipRecurringMutation = (
   return mutationOptions;
 };
 
+/**
+ * Upload a receipt photo (raw image bytes); it is scanned in the background
+ */
+export const uploadReceiptMutation = (
+  options?: Partial<Options<UploadReceiptData>>,
+): UseMutationOptions<UploadReceiptResponse, DefaultError, Options<UploadReceiptData>> => {
+  const mutationOptions: UseMutationOptions<
+    UploadReceiptResponse,
+    DefaultError,
+    Options<UploadReceiptData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await uploadReceipt({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+export const getReceiptQueryKey = (options: Options<GetReceiptData>) =>
+  createQueryKey('getReceipt', options);
+
+/**
+ * A receipt and what the scanner read from it
+ */
+export const getReceiptOptions = (options: Options<GetReceiptData>) =>
+  queryOptions<
+    GetReceiptResponse,
+    DefaultError,
+    GetReceiptResponse,
+    ReturnType<typeof getReceiptQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getReceipt({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: getReceiptQueryKey(options),
+  });
+
 export const getBalancesQueryKey = (options: Options<GetBalancesData>) =>
   createQueryKey('getBalances', options);
 
@@ -1355,6 +1421,102 @@ export const createSettlementMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await createSettlement({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+export const listTagsQueryKey = (options: Options<ListTagsData>) =>
+  createQueryKey('listTags', options);
+
+/**
+ * Tags used in a workspace, most used first
+ */
+export const listTagsOptions = (options: Options<ListTagsData>) =>
+  queryOptions<
+    ListTagsResponse,
+    DefaultError,
+    ListTagsResponse,
+    ReturnType<typeof listTagsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listTags({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: listTagsQueryKey(options),
+  });
+
+export const listBudgetsQueryKey = (options: Options<ListBudgetsData>) =>
+  createQueryKey('listBudgets', options);
+
+/**
+ * Monthly budgets with how much of each has been used
+ */
+export const listBudgetsOptions = (options: Options<ListBudgetsData>) =>
+  queryOptions<
+    ListBudgetsResponse,
+    DefaultError,
+    ListBudgetsResponse,
+    ReturnType<typeof listBudgetsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listBudgets({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: listBudgetsQueryKey(options),
+  });
+
+/**
+ * Set a monthly budget for a category (or ALL); admins only
+ */
+export const setBudgetMutation = (
+  options?: Partial<Options<SetBudgetData>>,
+): UseMutationOptions<SetBudgetResponse, DefaultError, Options<SetBudgetData>> => {
+  const mutationOptions: UseMutationOptions<
+    SetBudgetResponse,
+    DefaultError,
+    Options<SetBudgetData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await setBudget({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Remove a budget; admins only
+ */
+export const deleteBudgetMutation = (
+  options?: Partial<Options<DeleteBudgetData>>,
+): UseMutationOptions<DeleteBudgetResponse, DefaultError, Options<DeleteBudgetData>> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteBudgetResponse,
+    DefaultError,
+    Options<DeleteBudgetData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteBudget({
         ...options,
         ...fnOptions,
         throwOnError: true,

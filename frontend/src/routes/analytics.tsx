@@ -8,7 +8,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { BudgetsPanel } from '../features/budgets/BudgetsPanel';
 import { formatCurrency } from '../utils/currency';
 import { getAnalyticsOptions } from '../api/@tanstack/react-query.gen';
 
@@ -23,8 +25,26 @@ const CATEGORY_ICONS: Record<string, string> = {
   Other: '📝',
 };
 
+const periodStart = (period: 'all' | 'month' | '30d' | 'year'): string | undefined => {
+  const now = new Date();
+  if (period === 'month')
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  if (period === 'year') return new Date(Date.UTC(now.getUTCFullYear(), 0, 1)).toISOString();
+  if (period === '30d') return new Date(now.getTime() - 30 * 86_400_000).toISOString();
+  return undefined;
+};
+
 export default function AnalyticsPage({ workspaceId }: { workspaceId: string }) {
-  const { data, isLoading } = useQuery(getAnalyticsOptions({ path: { workspaceId } }));
+  const [period, setPeriod] = useState<'all' | 'month' | '30d' | 'year'>('all');
+  const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('day');
+  const { data, isLoading } = useQuery({
+    ...getAnalyticsOptions({
+      path: { workspaceId },
+      query: { from: periodStart(period), groupBy },
+    }),
+    // Keep showing the previous numbers while a new period loads, so the page doesn't flash.
+    placeholderData: (previous) => previous,
+  });
 
   if (isLoading)
     return (
@@ -40,6 +60,32 @@ export default function AnalyticsPage({ workspaceId }: { workspaceId: string }) 
       <div className="p-6 max-w-7xl mx-auto space-y-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Advanced Analytics</h1>
 
+        <div className="flex flex-wrap gap-3">
+          <select
+            value={period}
+            onChange={(e) => setPeriod(e.target.value as typeof period)}
+            aria-label="Period"
+            className="input-field w-auto"
+          >
+            <option value="all">All time</option>
+            <option value="month">This month</option>
+            <option value="30d">Last 30 days</option>
+            <option value="year">This year</option>
+          </select>
+          <select
+            value={groupBy}
+            onChange={(e) => setGroupBy(e.target.value as typeof groupBy)}
+            aria-label="Group by"
+            className="input-field w-auto"
+          >
+            <option value="day">By day</option>
+            <option value="week">By week</option>
+            <option value="month">By month</option>
+          </select>
+        </div>
+
+        <BudgetsPanel workspaceId={workspaceId} />
+
         {byCurrency.length === 0 && <p className="text-zinc-500">No data available.</p>}
 
         {byCurrency.map((stat: any) => {
@@ -54,6 +100,7 @@ export default function AnalyticsPage({ workspaceId }: { workspaceId: string }) 
             paid,
             todaySpend,
             thisMonthSpend,
+            monthOverMonthChange,
             tagsAnalysis,
           } = stat;
 
@@ -119,6 +166,14 @@ export default function AnalyticsPage({ workspaceId }: { workspaceId: string }) 
                   <p className="text-3xl font-bold text-text-main mt-2">
                     {formatCurrency(thisMonthSpend || 0, currency)}
                   </p>
+                  {monthOverMonthChange != null && (
+                    <p
+                      className={`text-xs mt-1 font-medium ${monthOverMonthChange > 0 ? 'text-red-500' : 'text-emerald-600'}`}
+                    >
+                      {monthOverMonthChange > 0 ? '▲' : '▼'} {Math.abs(monthOverMonthChange)}% vs
+                      last month
+                    </p>
+                  )}
                 </div>
                 <div className="bg-surface p-6 rounded-xl shadow-sm border border-border">
                   <p className="text-sm font-medium text-text-muted">Workspace Total Spend</p>

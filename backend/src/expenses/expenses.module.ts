@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { IExpensesRepositoryToken } from '../common/interfaces/repository.interfaces';
 import { DatabaseModule } from '../database/database.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
+import { BudgetsModule } from '../budgets/budgets.module';
 import { ExpensesController } from './expenses.controller';
 import { ExpensesService } from './expenses.service';
 import { ExpensesRepository } from './expenses.repository';
@@ -14,7 +15,7 @@ import { SharesSplitStrategy } from './strategies/shares-split.strategy';
 import { ItemizedSplitStrategy } from './strategies/itemized-split.strategy';
 
 @Module({
-  imports: [DatabaseModule, WorkspacesModule],
+  imports: [DatabaseModule, WorkspacesModule, BudgetsModule],
   controllers: [ExpensesController],
   providers: [
     ExpensesService,

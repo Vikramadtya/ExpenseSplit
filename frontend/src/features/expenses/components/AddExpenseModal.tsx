@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getWorkspaceMembersOptions,
   getWorkspaceOptions,
+  listTagsOptions,
   createExpenseMutation,
   createRecurringMutation,
 } from '../../../api/@tanstack/react-query.gen';
@@ -34,6 +35,7 @@ export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId 
 
   const { data: members = [] } = useQuery(getWorkspaceMembersOptions({ path: { workspaceId } }));
   const { data: workspace } = useQuery(getWorkspaceOptions({ path: { workspaceId } }));
+  const { data: knownTags = [] } = useQuery(listTagsOptions({ path: { workspaceId } }));
   const mutation = useMutation(createExpenseMutation());
   const recurringMutation = useMutation(createRecurringMutation());
   const [repeat, setRepeat] = useState<'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'>('NONE');
@@ -306,6 +308,7 @@ export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId 
                   ))}
                   <input
                     type="text"
+                    list="known-tags"
                     value={tagInput}
                     onChange={(e) => setTagInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -323,6 +326,13 @@ export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId 
                     placeholder={tags.length === 0 ? 'trip2024, dinner...' : ''}
                     className="flex-1 bg-transparent min-w-[120px] outline-none text-sm py-1"
                   />
+                  <datalist id="known-tags">
+                    {knownTags
+                      .filter((t) => !tags.includes(t.tag))
+                      .map((t) => (
+                        <option key={t.tag} value={t.tag} />
+                      ))}
+                  </datalist>
                 </div>
               </div>
             </div>

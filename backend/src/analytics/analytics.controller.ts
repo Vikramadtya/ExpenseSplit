@@ -1,17 +1,29 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query, Req } from '@nestjs/common';
+import { AnalyticsQueryDto } from './analytics-query.dto';
 import { AnalyticsService } from './analytics.service';
+
+type Authed = { user: { id: string } };
 
 @Controller('api/v1')
 export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) {}
+  constructor(private readonly analytics: AnalyticsService) {}
 
   @Get('workspaces/:workspaceId/analytics')
-  getWorkspaceAnalytics(@Param('workspaceId') workspaceId: string) {
-    return this.analyticsService.getWorkspaceAnalytics(workspaceId);
+  forWorkspace(
+    @Param('workspaceId') workspaceId: string,
+    @Query() query: AnalyticsQueryDto,
+    @Req() req: Authed,
+  ) {
+    return this.analytics.forWorkspace(workspaceId, req.user.id, query);
   }
 
   @Get('analytics')
-  getGlobalAnalytics() {
-    return this.analyticsService.getWorkspaceAnalytics('');
+  forUser(@Query() query: AnalyticsQueryDto, @Req() req: Authed) {
+    return this.analytics.forUser(req.user.id, query);
+  }
+
+  @Get('workspaces/:workspaceId/tags')
+  tags(@Param('workspaceId') workspaceId: string) {
+    return this.analytics.tags(workspaceId);
   }
 }

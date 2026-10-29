@@ -1082,4 +1082,252 @@ suite('ExpenseSplit API (integration)', () => {
       expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5173');
     });
   });
+
+  describe('analytics, budgets and data transfer', () => {
+    let books: string;
+    const now = new Date();
+    const lastMonth = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15, 12),
+    ).toISOString();
+    const spend = (
+      description: string,
+      amount: number,
+      opts: {
+        currency?: string;
+        category?: string;
+        tags?: string[];
+        date?: string;
+        workspace?: string;
+      } = {},
+    ) =>
+      api('post', `/workspaces/${opts.workspace ?? books}/expenses`, alice)
+        .send({
+          description,
+          amount,
+          currency: opts.currency ?? 'USD',
+          category: opts.category ?? 'Other',
+          tags: opts.tags ?? [],
+          date: opts.date ?? new Date().toISOString(),
+          payers: [{ userId: alice.id, amount }],
+          participants: [alice.id, bob.id],
+        })
+        .expect(201);
+    const analytics = async (query = '') =>
+      (await api('get', `/workspaces/${books}/analytics${query}`, alice).expect(200)).body
+        .byCurrency as Array<Record<string, any>>;
+    const usd = (rows: Array<Record<string, any>>) => rows.find((r) => r.currency === 'USD')!;
+
+    beforeAll(async () => {
+      books = (await api('post', '/workspaces', alice).send({ name: 'Books' })).body.id;
+      await api('post', `/workspaces/${books}/members`, alice).send({
+        email: `bob-${tag}@test.dev`,
+      });
+      await spend('Dinner', 40, { category: 'Food & Drink', tags: ['dinner'] });
+      await spend('Cab', 20, { category: 'Transport', tags: ['dinner', 'trip'] });
+      await spend('Groceries', 100, { currency: 'EUR', category: 'Groceries' });
+      await spend('Old bill', 50, { category: 'Utilities', date: lastMonth });
+    });
+
+    it('reports real numbers per currency', async () => {
+      const rows = await analytics();
+      expect(rows.map((r) => r.currency).sort()).toEqual(['EUR', 'USD']);
+      const u = usd(rows);
+      expect(u).toEqual(
+        expect.objectContaining({
+          totalSpend: 110,
+          expenseCount: 3,
+          thisMonthSpend: 60,
+          lastMonthSpend: 50,
+          monthOverMonthChange: 20,
+          trueSpending: 55, // Alice's share of 110
+          cashOut: 110, // Alice paid for everything
+          todaySpend: 60,
+        }),
+      );
+      expect(u.topCategories).toEqual([
+        { description: 'Utilities', count: 1, total: 50 },
+        { description: 'Food & Drink', count: 1, total: 40 },
+        { description: 'Transport', count: 1, total: 20 },
+      ]);
+      expect(u.tagsAnalysis).toEqual([
+        { tag: 'dinner', total: 60 },
+        { tag: 'trip', total: 20 },
+      ]);
+      expect(u.spendByMember.map((m: { amount: number }) => m.amount)).toEqual([55, 55]);
+      expect(rows.find((r) => r.currency === 'EUR')!.totalSpend).toBe(100);
+    });
+
+    it('filters by currency and date range, and groups by month', async () => {
+      expect((await analytics('?currency=eur')).map((r) => r.currency)).toEqual(['EUR']);
+
+      const monthStart = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+      ).toISOString();
+      expect(usd(await analytics(`?from=${monthStart}`)).totalSpend).toBe(60);
+
+      const monthly = usd(await analytics('?groupBy=month')).spendOverTime;
+      expect(monthly.map((p: { amount: number }) => p.amount)).toEqual([50, 60]);
+      expect(monthly[0].date.endsWith('-01')).toBe(true);
+
+      await api('get', `/workspaces/${books}/analytics?groupBy=year`, alice).expect(400);
+      await api('get', `/workspaces/${books}/analytics`, eve).expect(404);
+      const global = await api('get', '/analytics', alice).expect(200);
+      expect(usd(global.body.byCurrency).totalSpend).toBeGreaterThanOrEqual(110);
+    });
+
+    it('lists tags by use for autocomplete', async () => {
+      const res = await api('get', `/workspaces/${books}/tags`, bob).expect(200);
+      expect(res.body).toEqual([
+        { tag: 'dinner', count: 2 },
+        { tag: 'trip', count: 1 },
+      ]);
+    });
+
+    it('exports a Splitwise-style CSV that is safe to open in a spreadsheet', async () => {
+      await spend('=HYPERLINK("http://evil.example","click")', 10);
+      const res = await api('get', `/workspaces/${books}/export.csv`, bob).expect(200);
+      expect(res.headers['content-type']).toContain('text/csv');
+      expect(res.headers['content-disposition']).toContain('attachment');
+      const lines = res.text
+        .replace(/^\uFEFF/, '')
+        .trim()
+        .split(/\r\n/);
+      expect(lines[0]).toBe('Date,Description,Category,Cost,Currency,alice,bob');
+      expect(lines.some((l) => l.includes(',Dinner,Food & Drink,40,USD,20,-20'))).toBe(true);
+      // The formula is neutralised, never emitted raw at the start of a cell.
+      expect(lines.some((l) => l.includes(`'=HYPERLINK`))).toBe(true);
+      expect(lines.some((l) => /,=HYPERLINK/.test(l) || /^=/.test(l))).toBe(false);
+      await api('get', `/workspaces/${books}/export.csv`, eve).expect(404);
+    });
+
+    const importInto = (target: string, csv: string, as = alice, query = '') =>
+      request(app.getHttpServer())
+        .post(`/api/v1/workspaces/${target}/import/splitwise${query}`)
+        .set(as.auth as Record<string, string>)
+        .set('Content-Type', 'text/csv')
+        .send(csv);
+    const debtsOf = async (target: string) =>
+      (await api('get', `/workspaces/${target}/balances/debts`, alice)).body
+        .map(
+          (d: { debtor: string; creditor: string; amount: number; currency: string }) =>
+            `${d.currency} ${d.amount}`,
+        )
+        .sort();
+
+    it('imports what it exported, previews first, and never imports twice', async () => {
+      const csv = (await api('get', `/workspaces/${books}/export.csv`, alice)).text;
+      const copy = (await api('post', '/workspaces', alice).send({ name: 'Books copy' })).body.id;
+      await api('post', `/workspaces/${copy}/members`, alice).send({
+        email: `bob-${tag}@test.dev`,
+      });
+
+      const preview = await importInto(copy, csv, alice, '?dryRun=true').expect(200);
+      expect(preview.body).toEqual(
+        expect.objectContaining({ expenses: 5, payments: 0, dryRun: true, errors: [] }),
+      );
+      expect((await api('get', `/workspaces/${copy}/expenses`, alice)).body).toHaveLength(0);
+
+      const done = await importInto(copy, csv).expect(200);
+      expect(done.body).toEqual(
+        expect.objectContaining({ expenses: 5, skippedDuplicates: 0, errors: [] }),
+      );
+      expect(await debtsOf(copy)).toEqual(await debtsOf(books));
+
+      const again = await importInto(copy, csv).expect(200);
+      expect(again.body).toEqual(expect.objectContaining({ expenses: 0, skippedDuplicates: 5 }));
+      expect((await api('get', `/workspaces/${copy}/expenses`, alice)).body).toHaveLength(5);
+
+      await importInto(copy, csv, bob).expect(403); // admins only
+    });
+
+    it('asks you to match unknown names, imports payments, and reports bad rows', async () => {
+      const target = (await api('post', '/workspaces', alice).send({ name: 'Imports' })).body.id;
+      await api('post', `/workspaces/${target}/members`, alice).send({
+        email: `bob-${tag}@test.dev`,
+      });
+      const csv = [
+        'Date,Description,Category,Cost,Currency,alice,Zed',
+        '2026-01-05,Rent,Rent,100.00,USD,100.00,-100.00',
+        '2026-01-06,Payment,Payment,40.00,USD,-40.00,40.00',
+        '2026-01-07,Broken,Other,10.00,USD,5.00,-4.00',
+        '',
+      ].join('\n');
+
+      const unmatched = await importInto(target, csv).expect(400);
+      expect(unmatched.body.unmatched).toEqual(['Zed']);
+      expect(unmatched.body.members.map((m: { name: string }) => m.name).sort()).toEqual([
+        'alice',
+        'bob',
+      ]);
+
+      const mapping = encodeURIComponent(JSON.stringify({ Zed: bob.id }));
+      const res = await importInto(target, csv, alice, `?mapping=${mapping}`).expect(200);
+      expect(res.body).toEqual(
+        expect.objectContaining({
+          expenses: 1,
+          payments: 1,
+          errors: [{ line: 4, message: 'The balances in this row do not add up to zero' }],
+        }),
+      );
+      // Bob owes Alice 100 for rent, then paid her 40 back: 60 left.
+      expect(await debtsOf(target)).toEqual(['USD 60']);
+
+      await importInto(target, 'a,b\n1,2').expect(400);
+      await request(app.getHttpServer())
+        .post(`/api/v1/workspaces/${target}/import/splitwise`)
+        .set(alice.auth as Record<string, string>)
+        .send({ csv })
+        .expect(415);
+    });
+
+    it('warns the group at 80% and 100% of a budget, once each', async () => {
+      await api('put', `/workspaces/${books}/budgets`, bob)
+        .send({ category: 'Food & Drink', currency: 'USD', amount: 50 })
+        .expect(403);
+      await api('put', `/workspaces/${books}/budgets`, alice)
+        .send({ category: 'Pets', currency: 'USD', amount: 50 })
+        .expect(400);
+      const budget = await api('put', `/workspaces/${books}/budgets`, alice)
+        .send({ category: 'Food & Drink', currency: 'usd', amount: 50 })
+        .expect(200);
+      expect(budget.body).toEqual(
+        expect.objectContaining({ spent: 40, percent: 80, currency: 'USD' }),
+      );
+
+      const alerts = async () =>
+        (await api('get', '/notifications?limit=100', bob)).body.items.filter(
+          (n: { kind: string; workspaceId: string }) =>
+            n.kind === 'budget.alert' && n.workspaceId === books,
+        );
+      const settle = () => new Promise((r) => setTimeout(r, 600));
+
+      await spend('Lunch', 5, { category: 'Food & Drink' }); // 45 of 50 = 90%
+      await settle();
+      expect(
+        (await alerts()).map((n: { payload: { percent: number } }) => n.payload.percent),
+      ).toEqual([80]);
+
+      await spend('Snacks', 3, { category: 'Food & Drink' }); // 48 = 96%: no new threshold crossed
+      await settle();
+      expect(await alerts()).toHaveLength(1);
+
+      await spend('Dessert', 10, { category: 'Food & Drink' }); // 58 = 116%
+      await spend('Coffee', 4, { category: 'Food & Drink' }); // still over: already announced
+      await settle();
+      const sent = await alerts();
+      expect(sent.map((n: { payload: { percent: number } }) => n.payload.percent).sort()).toEqual([
+        100, 80,
+      ]);
+      expect(sent[0].message.title).toMatch(/^Budget (80|100)% used$/);
+
+      const list = await api('get', `/workspaces/${books}/budgets`, bob).expect(200);
+      expect(list.body[0]).toEqual(
+        expect.objectContaining({ category: 'Food & Drink', spent: 62, percent: 124 }),
+      );
+
+      await api('delete', `/workspaces/${books}/budgets/${budget.body.id}`, bob).expect(403);
+      await api('delete', `/workspaces/${books}/budgets/${budget.body.id}`, alice).expect(204);
+      await api('delete', `/workspaces/${books}/budgets/${budget.body.id}`, alice).expect(404);
+    });
+  });
 });

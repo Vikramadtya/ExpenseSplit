@@ -10,6 +10,7 @@ import {
 import { formatCurrency } from '../utils/currency';
 import { Search, Filter, ArrowUpDown, Pencil, Trash2 } from 'lucide-react';
 import { EditExpenseModal } from '../features/expenses/components/EditExpenseModal';
+import { DataTransferMenu } from '../features/data/DataTransferMenu';
 import { RecurringList } from '../features/recurring/RecurringList';
 import { useUiStore } from '../store/ui.store';
 import toast from 'react-hot-toast';
@@ -116,6 +117,7 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
             <h1 className="text-2xl font-bold font-display text-text-main">All Expenses</h1>
             <p className="text-text-muted text-sm mt-1">View, filter, and sort all transactions</p>
           </div>
+          <DataTransferMenu workspaceId={workspaceId} />
         </header>
 
         <div className="glass-panel p-4 flex flex-col md:flex-row gap-4 items-center justify-between z-10 relative">
