@@ -9,7 +9,24 @@ features depend on correct money math and transactional writes.
 
 ---
 
-## 1. Where the code stands today
+## Status
+
+| Phase | State |
+|-------|-------|
+| 0 Foundation and correctness | **Done**: `Money`, strategy registry (EQUAL/EXACT/PERCENTAGE/SHARES), atomic writes, edit recompute + optimistic locking, balances from net positions per currency, keyset pagination + search, migrations, CI tests |
+| 1 Security | **Partly done**: global JWT + workspace-membership guards with roles, global Zod validation, helmet, rate limiting, token moved to URL fragment. **Open:** httpOnly-cookie sessions with refresh rotation (needs the API served same-site as the web app, e.g. a Vercel rewrite), CSRF checks, account deletion/export, dependency/secret scanning |
+| 2–8 | Not started |
+
+Deviations from the original plan, and why:
+
+- **No `member_balances` table yet.** Balances come from one indexed aggregate over `expense_splits` and `settlements`. A maintained table adds drift risk; add it when measurements show the aggregate is slow.
+- **Amounts stay `numeric(12,2)` in Postgres**, converted to integer cents in `Money` at the boundary. Equivalent exactness, no API or column-type churn. Every currency uses 2 decimals for now (JPY/KWD need per-currency exponents later).
+- **ADJUSTMENT split type skipped**; SHARES was added instead. It can be added as one more strategy.
+- **The API runs on Express**, not Fastify as the README says (`main.ts` never used the Fastify adapter). Switching is a possible speed-up; it was not changed.
+- **`rls.sql` is still unused** and references a table that doesn't exist. App-layer enforcement is now tested; delete the file when convenient.
+- Expense list keeps returning a plain array; the next-page cursor is in the `x-next-cursor` header, so existing clients keep working.
+
+## 1. Where the code stands today (before Phase 0)
 
 Already in place: NestJS + Fastify, Drizzle/Postgres (Neon), Google OAuth + JWT, workspaces and
 members, expenses with EQUAL/EXACT/PERCENTAGE strategies, settlements, a debt-simplification
