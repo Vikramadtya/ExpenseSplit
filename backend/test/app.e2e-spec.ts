@@ -1330,4 +1330,81 @@ suite('ExpenseSplit API (integration)', () => {
       await api('delete', `/workspaces/${books}/budgets/${budget.body.id}`, alice).expect(404);
     });
   });
+
+  describe('metrics', () => {
+    it('records request timings by route template and counts live connections', async () => {
+      await api('get', `/workspaces/${ws}/expenses`, alice).expect(200);
+      await api('get', `/workspaces/${ws}/expenses`, eve).expect(404);
+      const res = await request(app.getHttpServer()).get('/metrics').expect(200);
+      // Concrete ids never appear as labels: only the template does.
+      expect(res.text).toContain(
+        'http_request_duration_seconds_count{method="GET",route="/api/v1/workspaces/:workspaceId/expenses",status="200"}',
+      );
+      expect(res.text).toContain('route="/api/v1/workspaces/:workspaceId/expenses",status="404"');
+      expect(res.text).not.toContain(ws);
+      expect(res.text).toMatch(/\nsse_connections 0\n/);
+    });
+  });
+
+  describe('cached pairwise debts', () => {
+    let pair: string;
+    const raw = async () =>
+      (
+        await api('get', `/workspaces/${pair}/balances/debts?simplified=false`, alice).expect(200)
+      ).body.map(
+        (d: { debtor: string; amount: number }) =>
+          `${d.debtor === bob.id ? 'bob' : 'alice'} ${d.amount}`,
+      ) as string[];
+    let first: string;
+
+    beforeAll(async () => {
+      pair = (await api('post', '/workspaces', alice).send({ name: 'Cache check' })).body.id;
+      await api('post', `/workspaces/${pair}/members`, alice).send({
+        email: `bob-${tag}@test.dev`,
+      });
+      first = (
+        await api('post', `/workspaces/${pair}/expenses`, alice).send({
+          description: 'One',
+          amount: 40,
+          date: new Date().toISOString(),
+          payers: [{ userId: alice.id, amount: 40 }],
+          participants: [alice.id, bob.id],
+        })
+      ).body.id;
+    });
+
+    // A cache that kept serving stale balances would be worse than no cache at all.
+    it('never serves stale numbers after the ledger changes', async () => {
+      expect(await raw()).toEqual(['bob 20']);
+      expect(await raw()).toEqual(['bob 20']); // served from the cache
+
+      const second = (
+        await api('post', `/workspaces/${pair}/expenses`, alice).send({
+          description: 'Two',
+          amount: 10,
+          date: new Date().toISOString(),
+          payers: [{ userId: alice.id, amount: 10 }],
+          participants: [alice.id, bob.id],
+        })
+      ).body.id;
+      expect(await raw()).toEqual(['bob 25']); // new expense
+
+      await api('patch', `/expenses/${second}`, alice).send({ amount: 20 }).expect(200);
+      expect(await raw()).toEqual(['bob 30']); // edited expense
+
+      await api('delete', `/expenses/${second}`, alice).expect(204);
+      expect(await raw()).toEqual(['bob 20']); // deleted
+
+      await api('post', `/expenses/${second}/restore`, alice).expect(200);
+      expect(await raw()).toEqual(['bob 30']); // restored
+
+      await api('post', `/workspaces/${pair}/settlements`, bob)
+        .send({ payerId: bob.id, payeeId: alice.id, amount: 5, date: new Date().toISOString() })
+        .expect(201);
+      expect(await raw()).toEqual(['bob 25']); // settlement
+
+      await api('delete', `/expenses/${first}`, alice).expect(204);
+      expect(await raw()).toEqual(['bob 5']);
+    });
+  });
 });

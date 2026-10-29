@@ -79,7 +79,42 @@ export class BalancesService {
     return { currency: target, owedToYou: owedToYou / 100, youOwe: youOwe / 100 };
   }
 
+  /**
+   * The un-simplified view reads every split in the workspace, which is the one expensive query
+   * here. Results are kept per workspace and reused until the ledger fingerprint changes (read
+   * from the database each time, so it stays correct with several server instances).
+   */
+  private readonly pairwiseCache = new Map<
+    string,
+    { fingerprint: string; debts: ReturnType<typeof toMajorDebt>[] }
+  >();
+  private static readonly PAIRWISE_CACHE_SIZE = 200;
+
+  private async cachedPairwise(
+    workspaceId: string,
+    compute: () => Promise<ReturnType<typeof toMajorDebt>[]>,
+  ) {
+    const fingerprint = await this.repository.ledgerFingerprint(workspaceId);
+    const hit = this.pairwiseCache.get(workspaceId);
+    if (hit?.fingerprint === fingerprint) return hit.debts;
+
+    const debts = await compute();
+    this.pairwiseCache.delete(workspaceId);
+    this.pairwiseCache.set(workspaceId, { fingerprint, debts });
+    if (this.pairwiseCache.size > BalancesService.PAIRWISE_CACHE_SIZE) {
+      this.pairwiseCache.delete(this.pairwiseCache.keys().next().value as string); // oldest first
+    }
+    return debts;
+  }
+
   async getDebts(workspaceId: string, simplified = true) {
+    if (!simplified) {
+      return this.cachedPairwise(workspaceId, () => this.computeDebts(workspaceId, false));
+    }
+    return this.computeDebts(workspaceId, true);
+  }
+
+  private async computeDebts(workspaceId: string, simplified: boolean) {
     const nets = await this.repository.getNetBalances(workspaceId);
     const currencies = [...new Set(nets.map((n) => n.currency))];
 

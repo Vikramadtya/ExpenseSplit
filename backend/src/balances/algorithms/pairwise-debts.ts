@@ -29,6 +29,15 @@ export function pairwiseDebts(
       .map((r) => ({ id: r.userId, minor: r.paid.minor - r.owed.minor }))
       .filter((r) => r.minor > 0);
     if (creditors.length === 0) continue;
+    // The usual case, one person paid: every shortfall goes to them, no allocation needed.
+    if (creditors.length === 1) {
+      for (const row of rows) {
+        const shortfall = row.owed.minor - row.paid.minor;
+        if (shortfall > 0) add(row.userId, creditors[0].id, shortfall);
+      }
+      continue;
+    }
+
     const weights = creditors.map((c) => c.minor);
     for (const row of rows) {
       const shortfall = row.owed.minor - row.paid.minor;

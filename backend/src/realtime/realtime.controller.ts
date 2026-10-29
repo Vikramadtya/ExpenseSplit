@@ -1,13 +1,18 @@
 import { Controller, Get, Param, Req, Res } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
+import { InjectMetric } from '@willsoto/nestjs-prometheus';
+import type { Gauge } from 'prom-client';
 import { EventBus } from '../common/events/event-bus';
 
 const HEARTBEAT_MS = 25_000;
 
 @Controller('api/v1')
 export class RealtimeController {
-  constructor(private readonly events: EventBus) {}
+  constructor(
+    private readonly events: EventBus,
+    @InjectMetric('sse_connections') private readonly connections: Gauge<string>,
+  ) {}
 
   /**
    * Server-sent events for one workspace. Membership is enforced by the global guard, and
@@ -23,6 +28,7 @@ export class RealtimeController {
       'X-Accel-Buffering': 'no', // don't let proxies buffer the stream
     });
     res.write('retry: 3000\n\n');
+    this.connections.inc();
 
     const unsubscribe = this.events.subscribe(workspaceId, (event) => {
       res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
@@ -30,6 +36,7 @@ export class RealtimeController {
     const heartbeat = setInterval(() => res.write(': ping\n\n'), HEARTBEAT_MS);
 
     req.on('close', () => {
+      this.connections.dec();
       clearInterval(heartbeat);
       unsubscribe();
     });

@@ -1,7 +1,11 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { ZodValidationPipe } from 'nestjs-zod';
-import { PrometheusModule } from '@willsoto/nestjs-prometheus';
+import { PrometheusModule, makeHistogramProvider } from '@willsoto/nestjs-prometheus';
+import {
+  HTTP_DURATION_METRIC,
+  HttpMetricsMiddleware,
+} from './common/middleware/http-metrics.middleware';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -78,10 +82,16 @@ import { MetricsController } from './common/metrics.controller';
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: WorkspaceMemberGuard },
     { provide: APP_PIPE, useClass: ZodValidationPipe },
+    makeHistogramProvider({
+      name: HTTP_DURATION_METRIC,
+      help: 'HTTP request duration in seconds, by route template',
+      labelNames: ['method', 'route', 'status'],
+      buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
+    }),
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RequestIdMiddleware).forRoutes('*');
+    consumer.apply(RequestIdMiddleware, HttpMetricsMiddleware).forRoutes('*');
   }
 }

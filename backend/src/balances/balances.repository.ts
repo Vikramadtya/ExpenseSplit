@@ -45,6 +45,19 @@ export class BalancesRepository implements IBalancesRepository {
     return rows.map((r) => ({ ...this.toNet(r), workspaceId: r.workspace_id as string }));
   }
 
+  async ledgerFingerprint(workspaceId: string): Promise<string> {
+    const rows = await this.db.execute(sql`
+      SELECT
+        (SELECT count(*) || ':' || coalesce(sum(version), 0) || ':' || count(deleted_at) || ':' ||
+                coalesce(extract(epoch FROM max(created_at))::text, '') || ':' ||
+                coalesce(extract(epoch FROM max(deleted_at))::text, '')
+           FROM expenses WHERE workspace_id = ${workspaceId}) AS expenses,
+        (SELECT count(*) || ':' || coalesce(extract(epoch FROM max(created_at))::text, '')
+           FROM settlements WHERE workspace_id = ${workspaceId}) AS settlements`);
+    const { expenses, settlements } = rows[0] as { expenses: string; settlements: string };
+    return `${expenses}|${settlements}`;
+  }
+
   async getSplitRecords(workspaceId: string, currency: string): Promise<SplitRecord[]> {
     const rows = await this.db.execute(sql`
       SELECT s.expense_id, s.user_id, s.amount_owed, s.amount_paid

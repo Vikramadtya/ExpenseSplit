@@ -121,6 +121,11 @@ export interface IBalancesRepository {
   getNetBalances(workspaceId: string): Promise<NetBalance[]>;
   /** Net balances of every member of every workspace that `userId` belongs to. */
   getNetBalancesForMember(userId: string): Promise<MemberNetBalance[]>;
+  /**
+   * A cheap string that changes whenever the workspace's expenses or settlements change
+   * (created, edited, deleted, restored), used to know when a cached result is still valid.
+   */
+  ledgerFingerprint(workspaceId: string): Promise<string>;
   getSplitRecords(workspaceId: string, currency: string): Promise<SplitRecord[]>;
   getSettlementRecords(workspaceId: string, currency: string): Promise<SettlementRecord[]>;
 }
