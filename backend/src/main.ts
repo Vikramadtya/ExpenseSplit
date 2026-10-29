@@ -1,12 +1,18 @@
 import './tracing';
 import { NestFactory } from '@nestjs/core';
+import helmet from 'helmet';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { TracingInterceptor } from './common/interceptors/tracing.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Behind Render/Vercel proxies: use the real client IP for rate limiting.
+  app.set('trust proxy', 1);
+  app.use(helmet());
 
   // Enable CORS since frontend is on a different port
   app.enableCors({

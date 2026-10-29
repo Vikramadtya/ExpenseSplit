@@ -39,6 +39,7 @@ suite('ExpenseSplit API (integration)', () => {
   beforeAll(async () => {
     process.env.DATABASE_URL = url;
     process.env.JWT_SECRET = 'test-secret';
+    process.env.THROTTLE_LIMIT = '100000';
     process.env.FRONTEND_URL = 'http://localhost:5173';
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();

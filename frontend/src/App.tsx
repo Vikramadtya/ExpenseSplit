@@ -77,21 +77,15 @@ const loginRoute = createRoute({
   component: LoginRoute,
 });
 
-type AuthCallbackSearch = { token?: string };
-
 const authCallbackRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/auth/callback',
-  validateSearch: (search: Record<string, unknown>): AuthCallbackSearch => ({
-    token: (search.token as string) || undefined,
-  }),
-  beforeLoad: ({ search }) => {
-    if (search.token) {
-      localStorage.setItem('access_token', search.token);
-      throw redirect({ to: '/workspaces' });
-    } else {
-      throw redirect({ to: '/login' });
-    }
+  beforeLoad: ({ location }) => {
+    // The API returns the token in the URL fragment so it never reaches servers or logs.
+    const token = new URLSearchParams(location.hash).get('token');
+    if (!token) throw redirect({ to: '/login' });
+    localStorage.setItem('access_token', token);
+    throw redirect({ to: '/workspaces', replace: true });
   },
 });
 
