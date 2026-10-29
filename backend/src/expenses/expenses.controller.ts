@@ -10,9 +10,11 @@ import {
   HttpCode,
   Req,
   Res,
+  UseInterceptors,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { ExpensesService } from './expenses.service';
+import { IdempotencyInterceptor } from '../common/idempotency/idempotency.interceptor';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 
@@ -48,6 +50,7 @@ export class ExpensesController {
   }
 
   @Post('workspaces/:workspaceId/expenses')
+  @UseInterceptors(IdempotencyInterceptor)
   @HttpCode(201)
   createExpense(
     @Param('workspaceId') workspaceId: string,

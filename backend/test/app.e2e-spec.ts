@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import request from 'supertest';
+import http from 'node:http';
 import { AppModule } from '../src/app.module';
 import { DRIZZLE_CLIENT } from '../src/database/database.module';
 import type { DrizzleDb } from '../src/database/database.module';
@@ -449,6 +450,108 @@ suite('ExpenseSplit API (integration)', () => {
       await api('post', `/friends/${alice.id}/workspace`, alice).expect(400);
       const stranger = await makeUser('stranger');
       await api('post', `/friends/${stranger.id}/workspace`, alice).expect(404);
+    });
+  });
+
+  describe('speed and sync', () => {
+    let ws2: string;
+    const payload = () => ({
+      description: 'Pizza',
+      amount: 24,
+      date: new Date().toISOString(),
+      payers: [{ userId: alice.id, amount: 24 }],
+      participants: [alice.id, bob.id],
+    });
+
+    beforeAll(async () => {
+      ws2 = (await api('post', '/workspaces', alice).send({ name: 'Sync' })).body.id;
+      await api('post', `/workspaces/${ws2}/members`, alice).send({ email: `bob-${tag}@test.dev` });
+    });
+
+    const count = async () =>
+      (await api('get', `/workspaces/${ws2}/expenses`, alice)).body.length as number;
+
+    it('runs a write once per Idempotency-Key and replays the result', async () => {
+      const key = `key-${tag}-a`;
+      const first = await api('post', `/workspaces/${ws2}/expenses`, alice)
+        .set('Idempotency-Key', key)
+        .send(payload())
+        .expect(201);
+      const retry = await api('post', `/workspaces/${ws2}/expenses`, alice)
+        .set('Idempotency-Key', key)
+        .send(payload())
+        .expect(201);
+      expect(retry.body.id).toBe(first.body.id);
+      expect(await count()).toBe(1);
+    });
+
+    it('scopes keys to the user and the endpoint', async () => {
+      const key = `key-${tag}-b`;
+      await api('post', `/workspaces/${ws2}/expenses`, alice)
+        .set('Idempotency-Key', key)
+        .send(payload())
+        .expect(201);
+      // Same key, different endpoint: refused instead of replaying the wrong response.
+      await api('post', `/workspaces/${ws2}/settlements`, alice)
+        .set('Idempotency-Key', key)
+        .send({ payerId: bob.id, payeeId: alice.id, amount: 1, date: new Date().toISOString() })
+        .expect(422);
+      // Another user may reuse the same key string independently.
+      await api('post', `/workspaces/${ws2}/expenses`, bob)
+        .set('Idempotency-Key', key)
+        .send(payload())
+        .expect(201);
+      await api('post', `/workspaces/${ws2}/expenses`, alice)
+        .set('Idempotency-Key', 'short')
+        .send(payload())
+        .expect(400);
+    });
+
+    it('lets a failed request be retried with the same key', async () => {
+      const key = `key-${tag}-c`;
+      await api('post', `/workspaces/${ws2}/expenses`, alice)
+        .set('Idempotency-Key', key)
+        .send({ ...payload(), amount: -5 })
+        .expect(400);
+      await api('post', `/workspaces/${ws2}/expenses`, alice)
+        .set('Idempotency-Key', key)
+        .send(payload())
+        .expect(201);
+    });
+
+    it('streams workspace events to members only', async () => {
+      await app.listen(0);
+      const port = (app.getHttpServer().address() as { port: number }).port;
+      const open = (as: { auth: object }) =>
+        new Promise<http.IncomingMessage>((resolve) =>
+          http.get(
+            {
+              port,
+              path: `/api/v1/workspaces/${ws2}/events`,
+              headers: as.auth as http.OutgoingHttpHeaders,
+            },
+            resolve,
+          ),
+        );
+
+      expect((await open(eve)).statusCode).toBe(404);
+
+      const stream = await open(bob);
+      expect(stream.statusCode).toBe(200);
+      expect(stream.headers['content-type']).toContain('text/event-stream');
+      const received = new Promise<string>((resolve) => {
+        let buffer = '';
+        stream.on('data', (chunk) => {
+          buffer += chunk.toString();
+          if (buffer.includes('expense.created')) resolve(buffer);
+        });
+      });
+
+      await api('post', `/workspaces/${ws2}/expenses`, alice).send(payload()).expect(201);
+      const text = await received;
+      expect(text).toContain('event: expense.created');
+      expect(text).toContain(`"workspaceId":"${ws2}"`);
+      stream.destroy();
     });
   });
 });

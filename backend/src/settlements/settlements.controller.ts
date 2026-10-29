@@ -1,7 +1,18 @@
-import { Controller, Get, Post, Param, Body, HttpCode, HttpStatus, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Body,
+  HttpCode,
+  HttpStatus,
+  Req,
+  UseInterceptors,
+} from '@nestjs/common';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { SettlementsService } from './settlements.service';
+import { IdempotencyInterceptor } from '../common/idempotency/idempotency.interceptor';
 import { CreateSettlementDto } from './dto/create-settlement.dto';
 
 const GlobalSettlementSchema = z.object({
@@ -20,6 +31,7 @@ export class SettlementsController {
   constructor(private readonly settlementsService: SettlementsService) {}
 
   @Post('workspaces/:workspaceId/settlements')
+  @UseInterceptors(IdempotencyInterceptor)
   @HttpCode(HttpStatus.CREATED)
   async recordSettlement(
     @Param('workspaceId') workspaceId: string,
@@ -34,6 +46,7 @@ export class SettlementsController {
   }
 
   @Post('settlements/global')
+  @UseInterceptors(IdempotencyInterceptor)
   @HttpCode(HttpStatus.CREATED)
   async recordGlobalSettlement(@Req() req: any, @Body() dto: GlobalSettlementDto) {
     return this.settlementsService.recordGlobalSettlement(

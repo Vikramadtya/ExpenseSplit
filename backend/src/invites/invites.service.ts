@@ -4,6 +4,7 @@ import { IWorkspacesRepositoryToken } from '../common/interfaces/repository.inte
 import type { IWorkspacesRepository } from '../common/interfaces/repository.interfaces';
 import { UsersService } from '../users/users.service';
 import { InvitesRepository } from './invites.repository';
+import { EventBus } from '../common/events/event-bus';
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const hash = (token: string) => createHash('sha256').update(token).digest('hex');
@@ -15,6 +16,7 @@ export class InvitesService {
     @Inject(IWorkspacesRepositoryToken)
     private readonly workspaces: IWorkspacesRepository,
     private readonly users: UsersService,
+    private readonly events: EventBus,
   ) {}
 
   /** Creates a join link. The raw token is returned once and never stored. */
@@ -58,7 +60,15 @@ export class InvitesService {
   async accept(token: string, userId: string) {
     const invite = await this.findActive(token);
     const role = await this.workspaces.findMemberRole(invite.workspaceId, userId);
-    if (!role) await this.workspaces.addMember(invite.workspaceId, userId, 'MEMBER');
+    if (!role) {
+      await this.workspaces.addMember(invite.workspaceId, userId, 'MEMBER');
+      this.events.publish({
+        workspaceId: invite.workspaceId,
+        type: 'member.joined',
+        entityId: userId,
+        actorId: userId,
+      });
+    }
     return { workspaceId: invite.workspaceId };
   }
 

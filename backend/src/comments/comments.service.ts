@@ -3,6 +3,7 @@ import { IWorkspacesRepositoryToken } from '../common/interfaces/repository.inte
 import type { IWorkspacesRepository } from '../common/interfaces/repository.interfaces';
 import { ExpensesService } from '../expenses/expenses.service';
 import { CommentsRepository } from './comments.repository';
+import { EventBus } from '../common/events/event-bus';
 
 @Injectable()
 export class CommentsService {
@@ -11,6 +12,7 @@ export class CommentsService {
     private readonly expenses: ExpensesService,
     @Inject(IWorkspacesRepositoryToken)
     private readonly workspaces: IWorkspacesRepository,
+    private readonly events: EventBus,
   ) {}
 
   async list(expenseId: string, userId: string) {
@@ -20,12 +22,19 @@ export class CommentsService {
 
   async add(expenseId: string, userId: string, body: string) {
     const expense = await this.expenses.findOneWithUserAccess(expenseId, userId);
-    return this.comments.create({
+    const comment = await this.comments.create({
       workspaceId: expense.workspaceId,
       expenseId,
       userId,
       body,
     });
+    this.events.publish({
+      workspaceId: expense.workspaceId,
+      type: 'comment.added',
+      entityId: expenseId,
+      actorId: userId,
+    });
+    return comment;
   }
 
   /** Authors can delete their own comments; admins can delete anyone's. */

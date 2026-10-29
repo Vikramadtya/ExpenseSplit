@@ -11,6 +11,7 @@ import type {
 import { Money } from '../common/money/money';
 import { BalancesService } from '../balances/balances.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
+import { EventBus } from '../common/events/event-bus';
 
 @Injectable()
 export class SettlementsService {
@@ -21,6 +22,7 @@ export class SettlementsService {
     private readonly workspacesRepository: IWorkspacesRepository,
     private readonly balancesService: BalancesService,
     private readonly workspacesService: WorkspacesService,
+    private readonly events: EventBus,
   ) {}
 
   async listSettlements(workspaceId: string) {
@@ -37,13 +39,20 @@ export class SettlementsService {
 
     const currency =
       dto.currency ?? (await this.workspacesService.getWorkspace(workspaceId)).defaultCurrency;
-    return this.repository.create(workspaceId, {
+    const settlement = await this.repository.create(workspaceId, {
       payerId: dto.payerId,
       payeeId: dto.payeeId,
       amount: Money.fromMajor(dto.amount, currency).toDecimal(),
       currency,
       date: new Date(dto.date),
     });
+    this.events.publish({
+      workspaceId,
+      type: 'settlement.created',
+      entityId: settlement.id,
+      actorId: dto.payerId,
+    });
+    return settlement;
   }
 
   /** Pays a friend across every workspace you share, clearing what you owe them first. */
@@ -64,15 +73,20 @@ export class SettlementsService {
     let remaining = Money.fromMajor(amount, currency);
     const created: unknown[] = [];
     const record = async (workspaceId: string, value: Money) => {
-      created.push(
-        await this.repository.create(workspaceId, {
-          payerId,
-          payeeId,
-          amount: value.toDecimal(),
-          currency: value.currency,
-          date: new Date(),
-        }),
-      );
+      const settlement = await this.repository.create(workspaceId, {
+        payerId,
+        payeeId,
+        amount: value.toDecimal(),
+        currency: value.currency,
+        date: new Date(),
+      });
+      created.push(settlement);
+      this.events.publish({
+        workspaceId,
+        type: 'settlement.created',
+        entityId: settlement.id,
+        actorId: payerId,
+      });
     };
 
     for (const workspace of shared) {

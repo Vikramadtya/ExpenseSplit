@@ -24,6 +24,20 @@ export default function DashboardRoute({ workspaceId }: { workspaceId: string })
   const balances = balancesData ?? { byCurrency: [] };
 
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
+
+  // Quick add: press "n" anywhere that isn't a text field.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      const typing = el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName);
+      if (e.key.toLowerCase() === 'n' && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        setIsAddExpenseOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<any | null>(null);

@@ -120,6 +120,7 @@ export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId 
 
     await mutation.mutateAsync({
       path: { workspaceId },
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
       body: {
         description,
         amount: Number(amount),

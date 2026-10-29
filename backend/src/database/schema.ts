@@ -11,6 +11,7 @@ import {
   jsonb,
   index,
   uniqueIndex,
+  primaryKey,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
@@ -206,6 +207,22 @@ export const invites = pgTable(
     uniqueIndex('invites_token_hash_uq').on(t.tokenHash),
     index('invites_workspace_idx').on(t.workspaceId),
   ],
+);
+
+/** Remembers the response to a request with an `Idempotency-Key`, so retries never repeat the write. */
+export const idempotencyKeys = pgTable(
+  'idempotency_keys',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    key: varchar('key', { length: 100 }).notNull(),
+    path: varchar('path', { length: 300 }).notNull(),
+    /** Null while the first request is still running. */
+    response: jsonb('response'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.key] })],
 );
 
 // --- RELATIONS ---

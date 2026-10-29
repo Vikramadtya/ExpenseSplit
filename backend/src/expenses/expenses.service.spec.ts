@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ExpensesService } from './expenses.service';
+import { EventBus } from '../common/events/event-bus';
 import { SplitStrategyRegistry } from './strategies/split-strategy.registry';
 import { EqualSplitStrategy } from './strategies/equal-split.strategy';
 import { ExactSplitStrategy } from './strategies/exact-split.strategy';
@@ -14,6 +15,7 @@ describe('ExpensesService', () => {
   let expenses: jest.Mocked<IExpensesRepository>;
   let workspaces: jest.Mocked<IWorkspacesRepository>;
   let service: ExpensesService;
+  let events: jest.Mocked<EventBus>;
 
   beforeEach(() => {
     expenses = {
@@ -27,10 +29,12 @@ describe('ExpensesService', () => {
       allAreMembers: jest.fn().mockResolvedValue(true),
       findMemberRole: jest.fn().mockResolvedValue('MEMBER'),
     } as unknown as jest.Mocked<IWorkspacesRepository>;
+    events = { publish: jest.fn(), subscribe: jest.fn() };
     service = new ExpensesService(
       expenses,
       workspaces,
       new SplitStrategyRegistry([new EqualSplitStrategy(), new ExactSplitStrategy()]),
+      events,
     );
   });
 
@@ -52,6 +56,13 @@ describe('ExpensesService', () => {
     expect(expense.amount).toBe('100.00');
     expect(splits.map((s) => s.amountOwed)).toEqual(['33.34', '33.33', '33.33']);
     expect(splits.find((s) => s.userId === A)?.amountPaid).toBe('100.00');
+  });
+
+  it('announces the new expense to the workspace', async () => {
+    await service.create('w1', A, dinner);
+    expect(events.publish).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'w1', type: 'expense.created', actorId: A }),
+    );
   });
 
   it('rejects people who are not workspace members', async () => {

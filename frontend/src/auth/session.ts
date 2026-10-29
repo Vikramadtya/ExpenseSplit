@@ -1,4 +1,5 @@
 import { client } from '../api/client.gen';
+import { clearPersistedCache } from '../offline/persist';
 
 const ACCESS_KEY = 'access_token';
 const REFRESH_KEY = 'refresh_token';
@@ -23,6 +24,7 @@ export function saveSession(accessToken: string, refreshToken?: string | null) {
 export function clearSession() {
   localStorage.removeItem(ACCESS_KEY);
   localStorage.removeItem(REFRESH_KEY);
+  void clearPersistedCache();
 }
 
 /** Fire-and-forget: revokes the server-side session, then forgets the tokens locally. */

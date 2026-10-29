@@ -17,6 +17,9 @@ import { SettlementsModule } from './settlements/settlements.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { CommentsModule } from './comments/comments.module';
 import { InvitesModule } from './invites/invites.module';
+import { EventsModule } from './common/events/events.module';
+import { IdempotencyModule } from './common/idempotency/idempotency.module';
+import { RealtimeModule } from './realtime/realtime.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { WorkspaceMemberGuard } from './auth/guards/workspace-member.guard';
 import { MetricsController } from './common/metrics.controller';
@@ -47,6 +50,9 @@ import { MetricsController } from './common/metrics.controller';
     AnalyticsModule,
     CommentsModule,
     InvitesModule,
+    EventsModule,
+    IdempotencyModule,
+    RealtimeModule,
   ],
   controllers: [AppController],
   providers: [

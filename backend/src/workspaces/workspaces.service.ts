@@ -3,6 +3,7 @@ import { BalancesService } from '../balances/balances.service';
 import type { IWorkspacesRepository, Role } from '../common/interfaces/repository.interfaces';
 import { IWorkspacesRepositoryToken } from '../common/interfaces/repository.interfaces';
 import { UsersService } from '../users/users.service';
+import { EventBus } from '../common/events/event-bus';
 
 @Injectable()
 export class WorkspacesService {
@@ -13,6 +14,7 @@ export class WorkspacesService {
     },
     private readonly usersService: UsersService,
     private readonly balancesService: BalancesService,
+    private readonly events: EventBus,
   ) {}
 
   async listWorkspaces(userId: string) {
@@ -82,6 +84,7 @@ export class WorkspacesService {
       );
     }
     await this.repository.removeMember(workspaceId, userId);
+    this.events.publish({ workspaceId, type: 'member.left', entityId: userId, actorId: userId });
     await this.deleteIfEmpty(workspaceId);
   }
 
@@ -108,6 +111,7 @@ export class WorkspacesService {
       throw new BadRequestException('A workspace needs at least one admin');
     }
     await this.repository.setMemberRole(workspaceId, userId, role);
+    this.events.publish({ workspaceId, type: 'member.role_changed', entityId: userId });
     return { userId, role };
   }
 

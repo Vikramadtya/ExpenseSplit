@@ -3,6 +3,7 @@ import { Home, LogOut, BarChart2, List, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getCurrentUserOptions } from '../api/@tanstack/react-query.gen';
+import { useWorkspaceEvents } from '../realtime/useWorkspaceEvents';
 import { ThemeToggle } from '../features/theme/components/ThemeToggle';
 
 interface DashboardLayoutProps {
@@ -20,6 +21,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   } catch {
     /* root route has no search */
   }
+
+  useWorkspaceEvents(workspaceId);
 
   const navLink = (to: string, icon: React.ReactNode, label: string) => {
     const isActive = location.pathname.startsWith(to);

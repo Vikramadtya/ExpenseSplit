@@ -23,6 +23,7 @@ import { Money } from '../common/money/money';
 import { SplitStrategyRegistry } from './strategies/split-strategy.registry';
 import type { SplitInput, SplitType } from './strategies/split.strategy';
 import { buildSplitRows } from './split-builder';
+import { EventBus } from '../common/events/event-bus';
 
 export interface ExpenseListQuery {
   q?: string;
@@ -67,6 +68,7 @@ export class ExpensesService {
     @Inject(IWorkspacesRepositoryToken)
     private readonly workspacesRepository: IWorkspacesRepository,
     private readonly strategies: SplitStrategyRegistry,
+    private readonly events: EventBus,
   ) {}
 
   async create(workspaceId: string, createdById: string, data: CreateExpenseDto) {
@@ -79,7 +81,7 @@ export class ExpensesService {
       splitInput,
     });
 
-    return this.expensesRepository.createWithSplits(
+    const created = await this.expensesRepository.createWithSplits(
       {
         workspaceId,
         createdById,
@@ -95,6 +97,8 @@ export class ExpensesService {
       },
       rows,
     );
+    this.emit('expense.created', created, createdById);
+    return created;
   }
 
   async list(workspaceId: string, query: ExpenseListQuery) {
@@ -180,13 +184,17 @@ export class ExpensesService {
   async updateWithUserAccess(expenseId: string, userId: string, data: UpdateExpenseDto) {
     const { expense, role } = await this.resolve(expenseId, userId);
     this.assertCanModify(expense, userId, role);
-    return this.update(expense.workspaceId, expenseId, data);
+    const updated = await this.update(expense.workspaceId, expenseId, data);
+    this.emit('expense.updated', expense, userId);
+    return updated;
   }
 
   async removeWithUserAccess(expenseId: string, userId: string) {
     const { expense, role } = await this.resolve(expenseId, userId);
     this.assertCanModify(expense, userId, role);
-    return this.remove(expense.workspaceId, expenseId);
+    const removed = await this.remove(expense.workspaceId, expenseId);
+    this.emit('expense.deleted', expense, userId);
+    return removed;
   }
 
   /** Undo for delete. */
@@ -194,7 +202,12 @@ export class ExpensesService {
     const { expense, role } = await this.resolve(expenseId, userId, true);
     this.assertCanModify(expense, userId, role);
     await this.expensesRepository.restore(expenseId);
+    this.emit('expense.restored', expense, userId);
     return this.findOne(expense.workspaceId, expenseId);
+  }
+
+  private emit(type: string, expense: { id: string; workspaceId: string }, actorId: string) {
+    this.events.publish({ workspaceId: expense.workspaceId, type, entityId: expense.id, actorId });
   }
 
   private async resolve(expenseId: string, userId: string, includeDeleted = false) {

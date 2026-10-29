@@ -7,18 +7,19 @@ import {
   redirect,
 } from '@tanstack/react-router';
 import { ErrorBoundary, type FallbackProps } from 'react-error-boundary';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { queryClient, persister } from './offline/persist';
+import { Suspense, lazy, useEffect } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 
-import LoginRoute from './routes/login';
-import WorkspacesRoute from './routes/workspaces';
-import DashboardRoute from './routes/dashboard';
-import AnalyticsRoute from './routes/analytics';
-import MembersRoute from './routes/members';
-import ExpensesRoute from './routes/expenses';
-import FriendsRoute from './routes/friends';
-import JoinRoute from './routes/join';
+const LoginRoute = lazy(() => import('./routes/login'));
+const WorkspacesRoute = lazy(() => import('./routes/workspaces'));
+const DashboardRoute = lazy(() => import('./routes/dashboard'));
+const AnalyticsRoute = lazy(() => import('./routes/analytics'));
+const MembersRoute = lazy(() => import('./routes/members'));
+const ExpensesRoute = lazy(() => import('./routes/expenses'));
+const FriendsRoute = lazy(() => import('./routes/friends'));
+const JoinRoute = lazy(() => import('./routes/join'));
 import { client } from './api/client.gen';
 import { getAccessToken, getFreshAccessToken, saveSession } from './auth/session';
 
@@ -43,8 +44,6 @@ client.interceptors.response.use((response) => {
   return response;
 });
 
-const queryClient = new QueryClient();
-
 // ─── Route Tree ───────────────────────────────────────────────────────────────
 
 const POST_LOGIN_KEY = 'post_login_redirect';
@@ -59,7 +58,9 @@ const requireAuth = () => {
 const rootRoute = createRootRoute({
   component: () => (
     <div className="min-h-screen bg-background text-text-main font-sans">
-      <Outlet />
+      <Suspense fallback={<div className="p-8 text-center text-text-muted">Loading…</div>}>
+        <Outlet />
+      </Suspense>
     </div>
   ),
 });
@@ -285,7 +286,10 @@ function BackendHealthCheck() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{ persister, maxAge: 24 * 60 * 60 * 1000, buster: 'v1' }}
+    >
       <ErrorBoundary FallbackComponent={ErrorFallback}>
         <BackendHealthCheck />
         <Toaster
@@ -309,7 +313,7 @@ function App() {
         />
         <RouterProvider router={router} />
       </ErrorBoundary>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }
 

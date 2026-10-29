@@ -39,6 +39,7 @@ export default function FriendsRoute() {
   const handleSettle = (friendId: string, amount: number, currency: string) => {
     setSettlingFriend(friendId);
     settleMutation.mutate({
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
       body: {
         payeeId: friendId,
         amount: Math.abs(amount),

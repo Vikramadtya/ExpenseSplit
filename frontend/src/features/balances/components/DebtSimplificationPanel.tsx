@@ -40,10 +40,13 @@ export const DebtSimplificationPanel: React.FC<Props> = ({ workspaceId }) => {
     if (confirmDebt && settleAmount) {
       await settleMutation.mutateAsync({
         path: { workspaceId },
+        // One key per click: a retry of this request can never record the payment twice.
+        headers: { 'Idempotency-Key': crypto.randomUUID() },
         body: {
           payerId: confirmDebt.debtor,
           payeeId: confirmDebt.creditor,
           amount: parseFloat(settleAmount),
+          currency: confirmDebt.currency,
           date: new Date().toISOString(),
         } as any,
       });
