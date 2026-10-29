@@ -6,9 +6,10 @@ import http from 'node:http';
 import { AppModule } from '../src/app.module';
 import { DRIZZLE_CLIENT } from '../src/database/database.module';
 import type { DrizzleDb } from '../src/database/database.module';
-import { fxRates, refreshTokens, users } from '../src/database/schema';
+import { fxRates, refreshTokens, users, workspaces } from '../src/database/schema';
 import { AuthService } from '../src/auth/auth.service';
 import { RecurringService } from '../src/recurring/recurring.service';
+import { AccountService } from '../src/account/account.service';
 import { OcrProvider } from '../src/receipts/ocr.provider';
 import { configureApp } from '../src/app.setup';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -1405,6 +1406,117 @@ suite('ExpenseSplit API (integration)', () => {
 
       await api('delete', `/expenses/${first}`, alice).expect(204);
       expect(await raw()).toEqual(['bob 5']);
+    });
+  });
+
+  describe('account export and deletion', () => {
+    let dana: Awaited<ReturnType<typeof makeUser>>;
+    let erin: Awaited<ReturnType<typeof makeUser>>;
+    let club: string;
+    let danaExpense: string;
+    const del = (as: { auth: object }, body: object = { confirm: 'DELETE' }) =>
+      request(app.getHttpServer())
+        .delete('/api/v1/users/me')
+        .set(as.auth as Record<string, string>)
+        .send(body);
+
+    beforeAll(async () => {
+      [dana, erin] = await Promise.all([makeUser('dana'), makeUser('erin')]);
+      club = (await api('post', '/workspaces', dana).send({ name: 'Club' })).body.id;
+      await api('post', `/workspaces/${club}/members`, dana).send({
+        email: `erin-${tag}@test.dev`,
+      });
+      danaExpense = (
+        await api('post', `/workspaces/${club}/expenses`, dana).send({
+          description: 'Court hire',
+          amount: 30,
+          date: new Date().toISOString(),
+          payers: [{ userId: dana.id, amount: 30 }],
+          participants: [dana.id, erin.id],
+        })
+      ).body.id;
+    });
+
+    it('exports only your own data', async () => {
+      const res = await api('get', '/users/me/export', dana).expect(200);
+      expect(res.headers['content-disposition']).toContain('attachment');
+      const data = JSON.parse(res.text);
+      expect(data.profile.email).toBe(`dana-${tag}@test.dev`);
+      expect(data.memberships.map((m: { name: string }) => m.name)).toEqual(['Club']);
+      expect(data.created.map((e: { description: string }) => e.description)).toEqual([
+        'Court hire',
+      ]);
+      expect(data.created.some((e: { description: string }) => e.description === 'Dinner')).toBe(
+        false,
+      );
+      expect(JSON.stringify(data)).not.toContain(`erin-${tag}`);
+      await request(app.getHttpServer()).get('/api/v1/users/me/export').expect(401);
+    });
+
+    it('needs an explicit confirmation', async () => {
+      await del(dana, {}).expect(400);
+      await del(dana, { confirm: 'yes' }).expect(400);
+    });
+
+    it('is refused while money is owed, with the reasons', async () => {
+      const res = await del(dana).expect(400);
+      expect(res.body.blockers).toEqual([
+        { workspace: 'Club', reason: 'There is an unsettled balance. Settle up first.' },
+      ]);
+    });
+
+    it('is refused for the only admin of a group with other members', async () => {
+      await api('post', `/workspaces/${club}/settlements`, erin)
+        .send({ payerId: erin.id, payeeId: dana.id, amount: 15, date: new Date().toISOString() })
+        .expect(201);
+      const res = await del(dana).expect(400);
+      expect(res.body.blockers[0].reason).toContain('only admin');
+      await api('patch', `/workspaces/${club}/members/${erin.id}`, dana)
+        .send({ role: 'ADMIN' })
+        .expect(200);
+    });
+
+    it('anonymises the account but keeps the ledger intact for everyone else', async () => {
+      const session = await app.get(AuthService).validateOAuthLogin({
+        emails: [{ value: `dana-${tag}@test.dev` }],
+        name: { givenName: 'Dana', familyName: 'D' },
+        photos: [],
+      });
+      await api('patch', '/users/me', dana).send({ paypalMe: 'danap' }).expect(200);
+
+      await del(dana).expect(204);
+
+      // The group and its expense live on, attributed to a placeholder.
+      const expense = await api('get', `/expenses/${danaExpense}`, erin).expect(200);
+      expect(expense.body.createdBy.name).toBe('Deleted user');
+      expect(expense.body.createdBy.email).toMatch(/^deleted-.*@deleted\.invalid$/);
+      expect(expense.body.createdBy.paypalMe).toBeNull();
+      const members = await api('get', `/workspaces/${club}/members`, erin).expect(200);
+      expect(members.body.map((m: { name: string }) => m.name)).toEqual(['erin']);
+
+      // Dana is out of the group, and her sessions no longer refresh.
+      await api('get', `/workspaces/${club}`, dana).expect(404);
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: session.refreshToken })
+        .expect(401);
+    });
+
+    it('removes a group when its last member deletes their account', async () => {
+      const gus = await makeUser('gus');
+      const solo = (await api('post', '/workspaces', gus).send({ name: 'Solo club' })).body.id;
+      // Straight to the service: the HTTP route is rate limited, and the tests have used its budget.
+      await app.get(AccountService).deleteAccount(gus.id);
+      const [row] = await db.select().from(workspaces).where(eq(workspaces.id, solo));
+      expect(row).toBeUndefined();
+    });
+
+    it('rate limits deletion attempts', async () => {
+      // Five attempts have already been made above from this client.
+      const res = await del(erin).expect(429);
+      expect(res.headers['retry-after']).toBeDefined();
+      // ...and the account was not deleted by the refused request.
+      await api('get', `/workspaces/${club}`, erin).expect(200);
     });
   });
 });

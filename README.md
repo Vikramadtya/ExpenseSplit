@@ -3,14 +3,19 @@
 ExpenseSplit is a modern, modular SaaS platform for tracking shared expenses, built with a strictly-typed Clean Architecture. 
 
 ## Features
-- **Real-time Balances:** Instantly see who is up and who is down across shared workspaces.
-- **Smart Debt Simplification:** Graph algorithm minimizes the total number of transactions needed to settle up.
-- **Shared Workspaces:** Isolate groups for roommates, trips, and clubs.
-- **Enterprise Architecture:** Built using Feature-Sliced Design (Frontend) and Strict Interfaces with Dependency Inversion (Backend).
+- **Groups and friends:** shared groups with roles, invite links, and a private ledger for each pair of friends.
+- **Exact money:** all amounts are integer cents; splits (equal, exact, percentage, shares, itemized) always add up to the cent.
+- **Receipts:** photograph a receipt, tap who had what, and tax and tip are shared in proportion.
+- **Multi-currency:** each expense keeps its own currency; balances are per currency with an optional converted total.
+- **Settling up:** simplified or pairwise debts, partial payments, and UPI / PayPal / Venmo pay links.
+- **Always current:** live updates between members, optimistic edits with Undo, installable offline-capable PWA.
+- **Recurring bills, budgets and reminders:** with in-app, push and email notifications.
+- **Analytics, CSV export, Splitwise import:** per-currency spend, categories, tags, month-over-month.
+- **Your data:** download everything, or delete your account.
 
 ## Tech Stack
 - **Frontend:** React 19, Vite, Tailwind CSS v4, TanStack Router, TanStack Query.
-- **Backend:** NestJS, Fastify, Zod Validation, OpenAPI-driven design.
+- **Backend:** NestJS (Express), PostgreSQL + Drizzle, Zod validation, OpenAPI-driven design.
 - **API Contract:** Generated via `@hey-api/openapi-ts`.
 
 ## Getting Started
@@ -55,6 +60,7 @@ Start the NestJS backend in development mode.
 
 ```bash
 cd backend
+npm run db:migrate   # apply database migrations
 npm run start:dev
 ```
 The backend will run on `http://localhost:3000`.
@@ -70,3 +76,18 @@ The frontend will be available at `http://localhost:5173`.
 
 ## Architecture Note
 The backend implements **Dependency Inversion** with Custom Providers mapping to Abstract Interfaces (e.g., `IWorkspacesRepository`). The frontend uses **Feature-Sliced Design (FSD)** located in `src/features/[domain]`.
+
+## Testing
+
+```bash
+cd backend
+npm test                                              # unit tests
+TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5433/expensesplit_test npm run db:migrate
+TEST_DATABASE_URL=... npm run test:e2e                # integration tests against a real Postgres
+```
+
+Load testing: `scripts/seed-bench.sql` seeds a 10,000-expense group into a throwaway database and
+`scripts/bench.mjs` measures latency percentiles (see the file headers).
+
+See [docs/implementation-plan.md](docs/implementation-plan.md) for status, [docs/security.md](docs/security.md)
+for the security model, and `.env.example` for every setting.

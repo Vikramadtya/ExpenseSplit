@@ -72,3 +72,27 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
+
+  security:
+    name: Dependency audit & secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # secret scanning reads the history, not just the latest commit
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Audit production dependencies (fails on critical)
+        run: |
+          for dir in backend frontend; do
+            echo "== $dir"
+            (cd $dir && npm ci --omit=dev --ignore-scripts && npm audit --omit=dev --audit-level=critical)
+            # Lower severities are reported, not blocking: see docs/security.md for accepted findings.
+            (cd $dir && npm audit --omit=dev || true)
+          done
+      - name: Scan for committed secrets
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.18.4 \
+            detect --source=/repo --redact --no-banner --verbose
+

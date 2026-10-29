@@ -4,9 +4,7 @@ import { z } from 'zod';
 
 const expenseSchema = z.object({
   description: z.string().min(1, 'Description is required'),
-  amount: z
-    .number({ invalid_type_error: 'Amount is required' })
-    .min(0.01, 'Amount must be greater than 0'),
+  amount: z.number({ error: 'Amount is required' }).min(0.01, 'Amount must be greater than 0'),
   date: z.string().min(1, 'Date is required'),
   groupId: z.string().min(1, 'Group is required'),
 });

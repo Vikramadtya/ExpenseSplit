@@ -88,15 +88,27 @@ export class WorkspacesService {
     await this.deleteIfEmpty(workspaceId);
   }
 
-  /** A member leaving on their own. Admins must hand over before leaving a group with others. */
-  async leave(workspaceId: string, userId: string) {
-    const role = await this.repository.findMemberRole(workspaceId, userId);
-    if (role === 'ADMIN' && (await this.repository.countAdmins(workspaceId)) === 1) {
-      const members = await this.repository.getMembers(workspaceId);
-      if (members.length > 1) {
-        throw new BadRequestException('Make another member an admin before leaving');
+  /** Why this person cannot leave right now (null when they can). Has no side effects. */
+  async whyCannotLeave(workspaceId: string, userId: string): Promise<string | null> {
+    if (await this.balancesService.hasOutstandingBalance(workspaceId, userId)) {
+      return 'There is an unsettled balance. Settle up first.';
+    }
+    const workspace = await this.getWorkspace(workspaceId);
+    if (workspace.type === 'GROUP') {
+      const role = await this.repository.findMemberRole(workspaceId, userId);
+      if (role === 'ADMIN' && (await this.repository.countAdmins(workspaceId)) === 1) {
+        if ((await this.repository.getMembers(workspaceId)).length > 1) {
+          return 'You are the only admin. Make another member an admin first.';
+        }
       }
     }
+    return null;
+  }
+
+  /** A member leaving on their own. Admins must hand over before leaving a group with others. */
+  async leave(workspaceId: string, userId: string) {
+    const reason = await this.whyCannotLeave(workspaceId, userId);
+    if (reason) throw new BadRequestException(reason);
     await this.removeMember(workspaceId, userId);
   }
 

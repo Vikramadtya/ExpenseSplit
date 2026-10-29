@@ -5,6 +5,7 @@ import {
   getDirectWorkspaceMutation,
 } from '../api/@tanstack/react-query.gen';
 import DashboardLayout from '../layouts/DashboardLayout';
+import { AccountSettings } from '../features/account/AccountSettings';
 import { PaymentHandlesForm } from '../features/payments/PaymentHandlesForm';
 import { Users, CheckCircle2, Wallet, BookOpen } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
@@ -149,6 +150,7 @@ export default function FriendsRoute() {
             ))}
           </div>
         )}
+        <AccountSettings />
       </div>
     </DashboardLayout>
   );

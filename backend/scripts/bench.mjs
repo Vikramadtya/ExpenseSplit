@@ -24,7 +24,8 @@ const endpoints = [
   ['members', `${w}/members`],
 ];
 
-const percentile = (sorted, p) => sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))];
+const percentile = (sorted, p) =>
+  sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))];
 
 async function run([name, path]) {
   const latencies = [];

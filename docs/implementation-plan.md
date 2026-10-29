@@ -11,21 +11,38 @@ features depend on correct money math and transactional writes.
 
 ## Status
 
+All eight phases are implemented and committed. Backend: unit tests + integration tests against a
+real Postgres (run in CI). The UI was exercised by hand in a browser for the main flows.
+
 | Phase | State |
 |-------|-------|
-| 0 Foundation and correctness | **Done**: `Money`, strategy registry (EQUAL/EXACT/PERCENTAGE/SHARES), atomic writes, edit recompute + optimistic locking, balances from net positions per currency, keyset pagination + search, migrations, CI tests |
-| 1 Security | **Mostly done**: global JWT + workspace-membership guards with roles, global Zod validation, helmet, rate limiting, token in URL fragment, **15-minute access tokens + single-use rotating refresh tokens with reuse detection and logout** (no cookies; refresh token lives in `localStorage`). **Open:** account deletion/export, dependency/secret scanning |
-| 2 Splitwise parity | **Mostly done.** Backend + tests: soft delete with undo, creator-or-admin edit/delete, comments, shareable invite links (7-day, revocable), roles + leave, 1:1 friend ledgers. UI: instant delete with Undo, invite link + join page, comments in the edit modal, friend-ledger button, Leave button. **Open:** email invites (no mailer yet), group archive, unregistered-member merge, richer activity feed, role-management UI, comments/ledger/leave UI not yet checked in a browser |
-| 3–8 | Not started |
+| 0 Foundation | **Done**: exact-cent `Money`, split strategy registry (equal/exact/percentage/shares/itemized), atomic writes, edit recompute + optimistic locking, balances from net positions per currency, cursor pagination + search, migrations (guarded by a test), CI |
+| 1 Security | **Done**: global JWT + workspace-membership guards with roles, Zod validation, helmet, rate limits, 15-min access tokens with single-use rotating refresh tokens, account export/deletion, CI dependency audit + secret scan + Dependabot. See `docs/security.md` for accepted risks |
+| 2 Splitwise parity | **Done** except email invites, group archive and unregistered-member merging |
+| 3 Fast UX | **Done**: idempotent writes, live sync (SSE), installable PWA, persisted query cache, lazy routes, `n` quick add. Offline writes queue only for the open session (they do not survive a reload) |
+| 4 Currency & payments | **Done**: per-expense currency, cached FX rates + converted totals, UPI/PayPal/Venmo links. Not built: settling a debt in a different currency at a stated rate; historical (per-expense-date) rates |
+| 5 Recurring & reminders | **Done**: crash-safe recurring rules, notifications, nudges, web push and email adapters. Push and email delivery were not tested against real providers; no weekly digest |
+| 6 Receipts & itemized | **Done**: upload, background scan through a Claude vision adapter (off without `ANTHROPIC_API_KEY`), itemized split with proportional tax/tip. Scanning was not run against the real model; photos are stored on local disk |
+| 7 Analytics & data | **Done**: per-currency analytics with filters, tags, categories, budgets with 80/100% alerts, CSV export, Splitwise import |
+| 8 Scale & observability | **Done**: route latency metrics, load-test tooling, measured results below. Not built: Sentry, a browser end-to-end suite (Playwright), Redis-backed live events |
 
-Deviations from the original plan, and why:
+### Measured performance
 
-- **No `member_balances` table yet.** Balances come from one indexed aggregate over `expense_splits` and `settlements`. A maintained table adds drift risk; add it when measurements show the aggregate is slow.
-- **Amounts stay `numeric(12,2)` in Postgres**, converted to integer cents in `Money` at the boundary. Equivalent exactness, no API or column-type churn. Every currency uses 2 decimals for now (JPY/KWD need per-currency exponents later).
-- **ADJUSTMENT split type skipped**; SHARES was added instead. It can be added as one more strategy.
-- **The API runs on Express**, not Fastify as the README says (`main.ts` never used the Fastify adapter). Switching is a possible speed-up; it was not changed.
-- **`rls.sql` is still unused** and references a table that doesn't exist. App-layer enforcement is now tested; delete the file when convenient.
-- Expense list keeps returning a plain array; the next-page cursor is in the `x-next-cursor` header, so existing clients keep working.
+20 concurrent users, a workspace with 10,000 expenses / 26,000 splits, local Postgres, one Node
+process (`scripts/bench.mjs`). Production numbers will differ with network and database latency.
+
+| Endpoint | p50 | p95 |
+|----------|-----|-----|
+| Expense list (50) / search / tag filter | 44-48 ms | 52-58 ms |
+| Balances / simplified debts / friends | 25-26 ms | 29-34 ms |
+| Analytics (grouped by month) | 74 ms | 83 ms |
+| Pairwise debts, cached | 9 ms | 11 ms |
+| Pairwise debts, uncached (first call after a change) | ~75-125 ms single request | CPU-bound: ~1 s p95 if 20 users all hit it right after a change |
+
+Decisions that differ from the original plan are listed after the phase table in earlier revisions
+of this document and in the commit history: no `member_balances` table (indexed aggregate instead),
+amounts stay `numeric(12,2)` and become integer cents in `Money`, no ADJUSTMENT split type, Express
+rather than Fastify, and no Row-Level Security (access is enforced and tested in the app layer).
 
 ## 1. Where the code stands today (before Phase 0)
 

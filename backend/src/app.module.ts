@@ -31,6 +31,7 @@ import { RecurringModule } from './recurring/recurring.module';
 import { ReceiptsModule } from './receipts/receipts.module';
 import { BudgetsModule } from './budgets/budgets.module';
 import { DataTransferModule } from './data-transfer/data-transfer.module';
+import { AccountModule } from './account/account.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { WorkspaceMemberGuard } from './auth/guards/workspace-member.guard';
 import { MetricsController } from './common/metrics.controller';
@@ -71,6 +72,7 @@ import { MetricsController } from './common/metrics.controller';
     ReceiptsModule,
     BudgetsModule,
     DataTransferModule,
+    AccountModule,
   ],
   controllers: [AppController],
   providers: [
