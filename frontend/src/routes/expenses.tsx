@@ -10,6 +10,7 @@ import {
 import { formatCurrency } from '../utils/currency';
 import { Search, Filter, ArrowUpDown, Pencil, Trash2 } from 'lucide-react';
 import { EditExpenseModal } from '../features/expenses/components/EditExpenseModal';
+import { RecurringList } from '../features/recurring/RecurringList';
 import { useUiStore } from '../store/ui.store';
 import toast from 'react-hot-toast';
 
@@ -177,6 +178,8 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
             </div>
           </div>
         </div>
+
+        <RecurringList workspaceId={workspaceId} />
 
         <div className="glass-panel rounded-xl overflow-hidden min-h-[400px]">
           {isLoading ? (

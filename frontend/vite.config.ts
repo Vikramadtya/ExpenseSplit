@@ -39,12 +39,12 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
-        // Cache the app shell only. API responses are never stored by the service worker:
-        // the (per-user, cleared-on-sign-out) query cache handles offline reads instead.
+      // A custom service worker (src/sw.ts) so it can also show push notifications.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//],
       },
     }),
   ],

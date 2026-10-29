@@ -13,6 +13,8 @@ import type {
   CreateGlobalSettlementResponses,
   CreateInviteData,
   CreateInviteResponses,
+  CreateRecurringData,
+  CreateRecurringResponses,
   CreateSettlementData,
   CreateSettlementResponses,
   CreateWorkspaceData,
@@ -21,6 +23,8 @@ import type {
   DeleteCommentResponses,
   DeleteExpenseData,
   DeleteExpenseResponses,
+  DeleteRecurringData,
+  DeleteRecurringResponses,
   DeleteWorkspaceData,
   DeleteWorkspaceResponses,
   GetActivityData,
@@ -47,6 +51,8 @@ import type {
   GetGlobalBalancesResponses,
   GetPaymentLinksData,
   GetPaymentLinksResponses,
+  GetPushPublicKeyData,
+  GetPushPublicKeyResponses,
   GetUserByIdData,
   GetUserByIdResponses,
   GetWorkspaceData,
@@ -61,10 +67,21 @@ import type {
   LeaveWorkspaceResponses,
   ListExpenseCommentsData,
   ListExpenseCommentsResponses,
+  ListNotificationsData,
+  ListNotificationsResponses,
+  ListRecurringData,
+  ListRecurringResponses,
   ListSettlementsData,
   ListSettlementsResponses,
   ListWorkspaceExpensesData,
   ListWorkspaceExpensesResponses,
+  MarkAllNotificationsReadData,
+  MarkAllNotificationsReadResponses,
+  MarkNotificationReadData,
+  MarkNotificationReadResponses,
+  NudgeMemberData,
+  NudgeMemberErrors,
+  NudgeMemberResponses,
   PreviewInviteData,
   PreviewInviteResponses,
   RemoveMemberData,
@@ -73,6 +90,14 @@ import type {
   RestoreExpenseResponses,
   RevokeInvitesData,
   RevokeInvitesResponses,
+  SetRecurringActiveData,
+  SetRecurringActiveResponses,
+  SkipRecurringData,
+  SkipRecurringResponses,
+  SubscribePushData,
+  SubscribePushResponses,
+  UnsubscribePushData,
+  UnsubscribePushResponses,
   UpdateCurrentUserData,
   UpdateCurrentUserResponses,
   UpdateExpenseData,
@@ -650,6 +675,242 @@ export const getDirectWorkspace = <ThrowOnError extends boolean = false>(
       },
     ],
     url: '/friends/{userId}/workspace',
+    ...options,
+  });
+
+/**
+ * Your notifications, newest first
+ */
+export const listNotifications = <ThrowOnError extends boolean = false>(
+  options?: Options<ListNotificationsData, ThrowOnError>,
+): RequestResult<ListNotificationsResponses, unknown, ThrowOnError> =>
+  (options?.client ?? client).get<ListNotificationsResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/notifications',
+    ...options,
+  });
+
+/**
+ * Mark every notification read
+ */
+export const markAllNotificationsRead = <ThrowOnError extends boolean = false>(
+  options?: Options<MarkAllNotificationsReadData, ThrowOnError>,
+): RequestResult<MarkAllNotificationsReadResponses, unknown, ThrowOnError> =>
+  (options?.client ?? client).post<MarkAllNotificationsReadResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/notifications/read-all',
+    ...options,
+  });
+
+/**
+ * Mark one notification read
+ */
+export const markNotificationRead = <ThrowOnError extends boolean = false>(
+  options: Options<MarkNotificationReadData, ThrowOnError>,
+): RequestResult<MarkNotificationReadResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).patch<MarkNotificationReadResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/notifications/{id}/read',
+    ...options,
+  });
+
+/**
+ * VAPID public key for web push (null when push is off)
+ */
+export const getPushPublicKey = <ThrowOnError extends boolean = false>(
+  options?: Options<GetPushPublicKeyData, ThrowOnError>,
+): RequestResult<GetPushPublicKeyResponses, unknown, ThrowOnError> =>
+  (options?.client ?? client).get<GetPushPublicKeyResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/push/public-key',
+    ...options,
+  });
+
+/**
+ * Register this browser for push notifications
+ */
+export const subscribePush = <ThrowOnError extends boolean = false>(
+  options: Options<SubscribePushData, ThrowOnError>,
+): RequestResult<SubscribePushResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).post<SubscribePushResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/push/subscribe',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Stop push notifications on this browser
+ */
+export const unsubscribePush = <ThrowOnError extends boolean = false>(
+  options: Options<UnsubscribePushData, ThrowOnError>,
+): RequestResult<UnsubscribePushResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).post<UnsubscribePushResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/push/unsubscribe',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Remind someone who owes you (once a day per person)
+ */
+export const nudgeMember = <ThrowOnError extends boolean = false>(
+  options: Options<NudgeMemberData, ThrowOnError>,
+): RequestResult<NudgeMemberResponses, NudgeMemberErrors, ThrowOnError> =>
+  (options.client ?? client).post<NudgeMemberResponses, NudgeMemberErrors, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/nudges',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Recurring expenses in a workspace
+ */
+export const listRecurring = <ThrowOnError extends boolean = false>(
+  options: Options<ListRecurringData, ThrowOnError>,
+): RequestResult<ListRecurringResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).get<ListRecurringResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/recurring',
+    ...options,
+  });
+
+/**
+ * Repeat an expense on a schedule (creates the first one if already due)
+ */
+export const createRecurring = <ThrowOnError extends boolean = false>(
+  options: Options<CreateRecurringData, ThrowOnError>,
+): RequestResult<CreateRecurringResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).post<CreateRecurringResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/recurring',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Cancel a recurring expense
+ */
+export const deleteRecurring = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteRecurringData, ThrowOnError>,
+): RequestResult<DeleteRecurringResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).delete<DeleteRecurringResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/recurring/{ruleId}',
+    ...options,
+  });
+
+/**
+ * Pause or resume a recurring expense
+ */
+export const setRecurringActive = <ThrowOnError extends boolean = false>(
+  options: Options<SetRecurringActiveData, ThrowOnError>,
+): RequestResult<SetRecurringActiveResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).patch<SetRecurringActiveResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/recurring/{ruleId}',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Skip the next occurrence
+ */
+export const skipRecurring = <ThrowOnError extends boolean = false>(
+  options: Options<SkipRecurringData, ThrowOnError>,
+): RequestResult<SkipRecurringResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).post<SkipRecurringResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/recurring/{ruleId}/skip',
     ...options,
   });
 

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getCurrentUserOptions } from '../api/@tanstack/react-query.gen';
 import { useWorkspaceEvents } from '../realtime/useWorkspaceEvents';
+import { NotificationBell } from '../features/notifications/NotificationBell';
 import { ThemeToggle } from '../features/theme/components/ThemeToggle';
 
 interface DashboardLayoutProps {
@@ -67,6 +68,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
 
         <div className="flex items-center gap-4">
+          <NotificationBell />
           <ThemeToggle />
           {currentUser && (
             <button

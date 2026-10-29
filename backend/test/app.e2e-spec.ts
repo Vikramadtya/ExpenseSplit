@@ -8,6 +8,7 @@ import { DRIZZLE_CLIENT } from '../src/database/database.module';
 import type { DrizzleDb } from '../src/database/database.module';
 import { fxRates, refreshTokens, users } from '../src/database/schema';
 import { AuthService } from '../src/auth/auth.service';
+import { RecurringService } from '../src/recurring/recurring.service';
 import { FxRateProvider } from '../src/fx/fx.provider';
 import { eq } from 'drizzle-orm';
 
@@ -44,6 +45,7 @@ suite('ExpenseSplit API (integration)', () => {
     process.env.DATABASE_URL = url;
     process.env.JWT_SECRET = 'test-secret';
     process.env.THROTTLE_LIMIT = '100000';
+    process.env.DISABLE_SCHEDULERS = 'true'; // tests trigger runs themselves
     process.env.FRONTEND_URL = 'http://localhost:5173';
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       // Never hit the real exchange-rate service from tests.
@@ -646,6 +648,227 @@ suite('ExpenseSplit API (integration)', () => {
           .links,
       ).toEqual([]);
       await api('get', `/payment-links?payeeId=${alice.id}&amount=5&currency=INR`, eve).expect(404);
+    });
+  });
+
+  describe('recurring expenses', () => {
+    let home: string;
+    const rule = (over: object = {}) => ({
+      description: 'Netflix',
+      amount: 15,
+      startDate: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+      interval: 'DAILY',
+      payers: [{ userId: alice.id, amount: 15 }],
+      participants: [alice.id, bob.id],
+      ...over,
+    });
+    const netflix = async () =>
+      (await api('get', `/workspaces/${home}/expenses?q=Netflix`, alice)).body as Array<{
+        id: string;
+      }>;
+
+    beforeAll(async () => {
+      home = (await api('post', '/workspaces', alice).send({ name: 'Subscriptions' })).body.id;
+      await api('post', `/workspaces/${home}/members`, alice).send({
+        email: `bob-${tag}@test.dev`,
+      });
+    });
+
+    it('creates the occurrences that are already due, once each', async () => {
+      const res = await api('post', `/workspaces/${home}/recurring`, alice)
+        .send(rule())
+        .expect(201);
+      expect(res.body.runCount).toBe(4); // 3 days ago, 2, 1, and today
+      expect(new Date(res.body.nextRunAt).getTime()).toBeGreaterThan(Date.now());
+      expect(await netflix()).toHaveLength(4);
+
+      // The scheduler (and a second server instance) running again must not duplicate anything.
+      const runner = app.get(RecurringService);
+      await Promise.all([runner.runDue(), runner.runDue()]);
+      expect(await netflix()).toHaveLength(4);
+    });
+
+    it('rejects a template that could never be saved', async () => {
+      await api('post', `/workspaces/${home}/recurring`, alice)
+        .send(rule({ description: 'Bad', participants: [alice.id, eve.id] }))
+        .expect(400);
+      await api('post', `/workspaces/${home}/recurring`, alice)
+        .send(rule({ interval: 'YEARLY' }))
+        .expect(400);
+      expect(
+        (await api('get', `/workspaces/${home}/recurring`, alice)).body.map(
+          (r: { template: { description: string } }) => r.template.description,
+        ),
+      ).toEqual(['Netflix']);
+    });
+
+    it('lets the creator or an admin pause, skip and cancel — and nobody else', async () => {
+      const bobsRule = (
+        await api('post', `/workspaces/${home}/recurring`, bob).send(
+          rule({
+            description: 'Gym',
+            startDate: new Date(Date.now() + 86_400_000).toISOString(),
+            payers: [{ userId: bob.id, amount: 15 }],
+          }),
+        )
+      ).body;
+      expect(await netflix()).toHaveLength(4);
+      const aliceRule = (await api('get', `/workspaces/${home}/recurring`, alice)).body.find(
+        (r: { template: { description: string } }) => r.template.description === 'Netflix',
+      );
+
+      await api('patch', `/workspaces/${home}/recurring/${aliceRule.id}`, bob)
+        .send({ active: false })
+        .expect(403);
+      await api('delete', `/workspaces/${home}/recurring/${aliceRule.id}`, bob).expect(403);
+
+      const paused = await api('patch', `/workspaces/${home}/recurring/${aliceRule.id}`, alice)
+        .send({ active: false })
+        .expect(200);
+      expect(paused.body.active).toBe(false);
+      const resumed = await api('patch', `/workspaces/${home}/recurring/${aliceRule.id}`, alice)
+        .send({ active: true })
+        .expect(200);
+      expect(new Date(resumed.body.nextRunAt).getTime()).toBeGreaterThan(Date.now());
+
+      const skipped = await api(
+        'post',
+        `/workspaces/${home}/recurring/${aliceRule.id}/skip`,
+        alice,
+      ).expect(200);
+      expect(skipped.body.runCount).toBe(resumed.body.runCount + 1);
+
+      // An admin may cancel someone else's rule.
+      await api('delete', `/workspaces/${home}/recurring/${bobsRule.id}`, alice).expect(204);
+      await api('delete', `/workspaces/${home}/recurring/${aliceRule.id}`, alice).expect(204);
+      await api('get', `/workspaces/${home}/recurring`, eve).expect(404);
+    });
+  });
+
+  describe('notifications and nudges', () => {
+    let flat2: string;
+    const eventually = async <T>(check: () => Promise<T | false>, ms = 4000): Promise<T> => {
+      const end = Date.now() + ms;
+      for (;;) {
+        const value = await check();
+        if (value) return value;
+        if (Date.now() > end) throw new Error('condition not met in time');
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    };
+    const inbox = async (as: { auth: object }) => (await api('get', '/notifications', as)).body;
+
+    beforeAll(async () => {
+      flat2 = (await api('post', '/workspaces', alice).send({ name: 'Notify' })).body.id;
+      await api('post', `/workspaces/${flat2}/members`, alice).send({
+        email: `bob-${tag}@test.dev`,
+      });
+      await api('post', `/workspaces/${flat2}/members`, alice).send({
+        email: `carol-${tag}@test.dev`,
+      });
+    });
+
+    const addExpense = (as: { auth: object }, payer: string, description: string, amount = 30) =>
+      api('post', `/workspaces/${flat2}/expenses`, as)
+        .send({
+          description,
+          amount,
+          date: new Date().toISOString(),
+          payers: [{ userId: payer, amount }],
+          participants: [alice.id, bob.id, carol.id],
+        })
+        .expect(201);
+
+    it('tells the people involved, but not the person who did it', async () => {
+      await addExpense(bob, bob.id, 'Tickets');
+      const mine = await eventually(async () => {
+        const n = await inbox(alice);
+        return (
+          n.items.some(
+            (i: { payload: { description?: string } }) => i.payload.description === 'Tickets',
+          ) && n
+        );
+      });
+      expect(mine.unreadCount).toBeGreaterThan(0);
+      const item = mine.items.find(
+        (i: { payload: { description?: string } }) => i.payload.description === 'Tickets',
+      );
+      expect(item.message).toEqual({ title: 'bob added "Tickets"', body: '30.00 USD in Notify' });
+      expect(
+        (await inbox(bob)).items.filter(
+          (i: { payload: { description?: string } }) => i.payload.description === 'Tickets',
+        ),
+      ).toHaveLength(0);
+    });
+
+    it('marks notifications read, one at a time or all at once', async () => {
+      const { items } = await inbox(alice);
+      await api('patch', `/notifications/${items[0].id}/read`, alice).expect(204);
+      const after = await inbox(alice);
+      expect(after.items.find((i: { id: string }) => i.id === items[0].id).readAt).toBeTruthy();
+      await api('post', '/notifications/read-all', alice).expect(204);
+      expect((await inbox(alice)).unreadCount).toBe(0);
+      // Someone else's notification can't be marked.
+      await api('patch', `/notifications/${items[0].id}/read`, eve).expect(204);
+      expect((await inbox(alice)).items[0].readAt).toBeTruthy();
+    });
+
+    it('respects muted notification kinds', async () => {
+      await api('patch', '/users/me', carol)
+        .send({ mutedNotificationKinds: ['expense.added'] })
+        .expect(200);
+      await api('patch', '/users/me', carol)
+        .send({ mutedNotificationKinds: ['nonsense'] })
+        .expect(400);
+      await addExpense(alice, alice.id, 'Muted lunch');
+      await eventually(async () =>
+        (await inbox(bob)).items.some(
+          (i: { payload: { description?: string } }) => i.payload.description === 'Muted lunch',
+        ),
+      );
+      expect(
+        (await inbox(carol)).items.filter(
+          (i: { payload: { description?: string } }) => i.payload.description === 'Muted lunch',
+        ),
+      ).toHaveLength(0);
+    });
+
+    it('keeps push subscriptions per user and reports push as off without keys', async () => {
+      expect((await api('get', '/push/public-key', alice).expect(200)).body).toEqual({
+        publicKey: null,
+      });
+      const sub = {
+        endpoint: `https://push.example/${tag}`,
+        keys: { p256dh: 'p'.repeat(20), auth: 'a'.repeat(10) },
+      };
+      await api('post', '/push/subscribe', alice).send(sub).expect(204);
+      await api('post', '/push/subscribe', alice).send(sub).expect(204); // idempotent
+      await api('post', '/push/subscribe', alice)
+        .send({ endpoint: 'not a url', keys: sub.keys })
+        .expect(400);
+      await api('post', '/push/unsubscribe', alice).send({ endpoint: sub.endpoint }).expect(204);
+    });
+
+    it('nudges someone who owes you, once a day', async () => {
+      // After Tickets (Bob paid 30) and Muted lunch (Alice paid 30), both split three ways,
+      // Carol is the one who owes: 10 to Alice and 10 to Bob.
+      await api('post', `/workspaces/${flat2}/nudges`, bob).send({ userId: carol.id }).expect(200);
+      await api('post', `/workspaces/${flat2}/nudges`, bob).send({ userId: carol.id }).expect(429);
+
+      const nudge = await eventually(async () =>
+        (await inbox(carol)).items.find((i: { kind: string }) => i.kind === 'nudge'),
+      );
+      expect(nudge.message.title).toBe('bob sent you a reminder');
+      expect(nudge.payload).toEqual(expect.objectContaining({ amount: 10, currency: 'USD' }));
+    });
+
+    it('only nudges real debtors who are members', async () => {
+      await api('post', `/workspaces/${flat2}/nudges`, alice).send({ userId: bob.id }).expect(400); // Bob owes nothing
+      await api('post', `/workspaces/${flat2}/nudges`, alice).send({ userId: eve.id }).expect(400); // not a member
+      await api('post', `/workspaces/${flat2}/nudges`, alice)
+        .send({ userId: alice.id })
+        .expect(400);
+      await api('post', `/workspaces/${flat2}/nudges`, eve).send({ userId: bob.id }).expect(404);
     });
   });
 });

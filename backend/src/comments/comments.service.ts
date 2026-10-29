@@ -4,6 +4,7 @@ import type { IWorkspacesRepository } from '../common/interfaces/repository.inte
 import { ExpensesService } from '../expenses/expenses.service';
 import { CommentsRepository } from './comments.repository';
 import { EventBus } from '../common/events/event-bus';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class CommentsService {
@@ -13,6 +14,7 @@ export class CommentsService {
     @Inject(IWorkspacesRepositoryToken)
     private readonly workspaces: IWorkspacesRepository,
     private readonly events: EventBus,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(expenseId: string, userId: string) {
@@ -34,6 +36,15 @@ export class CommentsService {
       entityId: expenseId,
       actorId: userId,
     });
+    this.notifications.notifyLater(
+      [expense.createdById, ...expense.splits.map((s: { userId: string }) => s.userId)],
+      {
+        kind: 'comment.added',
+        workspaceId: expense.workspaceId,
+        actorId: userId,
+        payload: { expenseId, description: expense.description, snippet: body.slice(0, 80) },
+      },
+    );
     return comment;
   }
 

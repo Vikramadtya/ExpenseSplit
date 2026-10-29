@@ -22,6 +22,8 @@ import { IdempotencyModule } from './common/idempotency/idempotency.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { FxModule } from './fx/fx.module';
 import { PaymentsModule } from './payments/payments.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { RecurringModule } from './recurring/recurring.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { WorkspaceMemberGuard } from './auth/guards/workspace-member.guard';
 import { MetricsController } from './common/metrics.controller';
@@ -57,6 +59,8 @@ import { MetricsController } from './common/metrics.controller';
     RealtimeModule,
     FxModule,
     PaymentsModule,
+    NotificationsModule,
+    RecurringModule,
   ],
   controllers: [AppController],
   providers: [

@@ -43,6 +43,13 @@
       "when": 1793293797582,
       "tag": "0005_fx_and_payment_handles",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793294009450,
+      "tag": "0006_recurring_and_notifications",
+      "breakpoints": true
     }
   ]
 }

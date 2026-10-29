@@ -12,6 +12,7 @@ import { Money } from '../common/money/money';
 import { BalancesService } from '../balances/balances.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { EventBus } from '../common/events/event-bus';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class SettlementsService {
@@ -23,6 +24,7 @@ export class SettlementsService {
     private readonly balancesService: BalancesService,
     private readonly workspacesService: WorkspacesService,
     private readonly events: EventBus,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async listSettlements(workspaceId: string) {
@@ -52,7 +54,20 @@ export class SettlementsService {
       entityId: settlement.id,
       actorId: dto.payerId,
     });
+    this.notifySettlement(workspaceId, settlement);
     return settlement;
+  }
+
+  private notifySettlement(
+    workspaceId: string,
+    s: { payerId: string; payeeId: string; amount: string; currency: string },
+  ) {
+    this.notifications.notifyLater([s.payeeId], {
+      kind: 'settlement.received',
+      workspaceId,
+      actorId: s.payerId,
+      payload: { amount: Number(s.amount), currency: s.currency },
+    });
   }
 
   /** Pays a friend across every workspace you share, clearing what you owe them first. */
@@ -81,6 +96,7 @@ export class SettlementsService {
         date: new Date(),
       });
       created.push(settlement);
+      this.notifySettlement(workspaceId, settlement);
       this.events.publish({
         workspaceId,
         type: 'settlement.created',

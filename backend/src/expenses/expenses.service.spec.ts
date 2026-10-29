@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ExpensesService } from './expenses.service';
 import { EventBus } from '../common/events/event-bus';
+import { NotificationsService } from '../notifications/notifications.service';
 import { SplitStrategyRegistry } from './strategies/split-strategy.registry';
 import { EqualSplitStrategy } from './strategies/equal-split.strategy';
 import { ExactSplitStrategy } from './strategies/exact-split.strategy';
@@ -21,7 +22,7 @@ describe('ExpensesService', () => {
     expenses = {
       findPage: jest.fn(),
       findById: jest.fn(),
-      createWithSplits: jest.fn(async (e) => ({ id: 'e1', ...e })),
+      createWithSplits: jest.fn(async (e, splits) => ({ id: 'e1', ...e, splits })),
       updateWithSplits: jest.fn(async (id) => ({ id })),
       delete: jest.fn(),
     };
@@ -35,6 +36,7 @@ describe('ExpensesService', () => {
       workspaces,
       new SplitStrategyRegistry([new EqualSplitStrategy(), new ExactSplitStrategy()]),
       events,
+      { notifyLater: jest.fn() } as unknown as NotificationsService,
     );
   });
 

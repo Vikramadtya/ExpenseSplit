@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import { BellRing } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { getCurrentUserOptions, nudgeMemberMutation } from '../../../api/@tanstack/react-query.gen';
 import { PaymentLinks } from '../../payments/PaymentLinks';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -36,6 +39,16 @@ export const DebtSimplificationPanel: React.FC<Props> = ({ workspaceId }) => {
     currency?: string;
   } | null>(null);
   const [settleAmount, setSettleAmount] = useState<string>('');
+
+  const { data: me } = useQuery(getCurrentUserOptions());
+  const nudge = useMutation({
+    ...nudgeMemberMutation(),
+    onSuccess: () => toast.success('Reminder sent'),
+    onError: (e: any) =>
+      toast.error(
+        e?.statusCode === 429 ? 'You already reminded them today' : 'Could not send reminder',
+      ),
+  });
 
   const handleSettle = async () => {
     if (confirmDebt && settleAmount) {
@@ -117,6 +130,18 @@ export const DebtSimplificationPanel: React.FC<Props> = ({ workspaceId }) => {
                 <span className="text-lg font-bold text-text-main">
                   {formatCurrency(debt.amount, debt.currency || 'USD')}
                 </span>
+                {debt.creditor === me?.id && (
+                  <button
+                    onClick={() =>
+                      nudge.mutate({ path: { workspaceId }, body: { userId: debt.debtor } })
+                    }
+                    disabled={nudge.isPending}
+                    title="Send a reminder"
+                    className="p-2 text-text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                  >
+                    <BellRing className="w-4 h-4" />
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setConfirmDebt(debt);

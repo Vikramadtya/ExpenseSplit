@@ -24,6 +24,7 @@ import { SplitStrategyRegistry } from './strategies/split-strategy.registry';
 import type { SplitInput, SplitType } from './strategies/split.strategy';
 import { buildSplitRows } from './split-builder';
 import { EventBus } from '../common/events/event-bus';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export interface ExpenseListQuery {
   q?: string;
@@ -69,9 +70,26 @@ export class ExpensesService {
     private readonly workspacesRepository: IWorkspacesRepository,
     private readonly strategies: SplitStrategyRegistry,
     private readonly events: EventBus,
+    private readonly notifications: NotificationsService,
   ) {}
 
-  async create(workspaceId: string, createdById: string, data: CreateExpenseDto) {
+  /** Throws if this expense could not be saved (bad split, non-members...), without saving it. */
+  async validate(workspaceId: string, data: CreateExpenseDto): Promise<void> {
+    await this.planSplits(workspaceId, {
+      amount: data.amount,
+      currency: data.currency,
+      splitType: data.splitType,
+      payers: data.payers,
+      splitInput: this.extractSplitInput(data),
+    });
+  }
+
+  async create(
+    workspaceId: string,
+    createdById: string,
+    data: CreateExpenseDto,
+    origin?: { ruleId: string; occurrenceAt: Date },
+  ) {
     const splitInput = this.extractSplitInput(data);
     const rows = await this.planSplits(workspaceId, {
       amount: data.amount,
@@ -94,10 +112,26 @@ export class ExpensesService {
         tags: data.tags ?? [],
         recurringInterval: data.recurringInterval,
         splitInput,
+        recurringRuleId: origin?.ruleId,
+        occurrenceAt: origin?.occurrenceAt,
       },
       rows,
     );
     this.emit('expense.created', created, createdById);
+    this.notifications.notifyLater(
+      created.splits.map((s: { userId: string }) => s.userId),
+      {
+        kind: 'expense.added',
+        workspaceId,
+        actorId: createdById,
+        payload: {
+          expenseId: created.id,
+          description: created.description,
+          amount: Number(created.amount),
+          currency: created.currency,
+        },
+      },
+    );
     return created;
   }
 

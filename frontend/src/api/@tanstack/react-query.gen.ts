@@ -15,10 +15,12 @@ import {
   createExpenseComment,
   createGlobalSettlement,
   createInvite,
+  createRecurring,
   createSettlement,
   createWorkspace,
   deleteComment,
   deleteExpense,
+  deleteRecurring,
   deleteWorkspace,
   getActivity,
   getAnalytics,
@@ -32,6 +34,7 @@ import {
   getGlobalAnalytics,
   getGlobalBalances,
   getPaymentLinks,
+  getPushPublicKey,
   getUserById,
   getWorkspace,
   getWorkspaceMembers,
@@ -39,13 +42,22 @@ import {
   inviteMember,
   leaveWorkspace,
   listExpenseComments,
+  listNotifications,
+  listRecurring,
   listSettlements,
   listWorkspaceExpenses,
+  markAllNotificationsRead,
+  markNotificationRead,
+  nudgeMember,
   type Options,
   previewInvite,
   removeMember,
   restoreExpense,
   revokeInvites,
+  setRecurringActive,
+  skipRecurring,
+  subscribePush,
+  unsubscribePush,
   updateCurrentUser,
   updateExpense,
   updateWorkspace,
@@ -60,6 +72,8 @@ import type {
   CreateGlobalSettlementData,
   CreateInviteData,
   CreateInviteResponse,
+  CreateRecurringData,
+  CreateRecurringResponse,
   CreateSettlementData,
   CreateSettlementResponse,
   CreateWorkspaceData,
@@ -68,6 +82,8 @@ import type {
   DeleteCommentResponse,
   DeleteExpenseData,
   DeleteExpenseResponse,
+  DeleteRecurringData,
+  DeleteRecurringResponse,
   DeleteWorkspaceData,
   DeleteWorkspaceResponse,
   GetActivityData,
@@ -94,6 +110,8 @@ import type {
   GetGlobalBalancesResponse,
   GetPaymentLinksData,
   GetPaymentLinksResponse,
+  GetPushPublicKeyData,
+  GetPushPublicKeyResponse,
   GetUserByIdData,
   GetUserByIdResponse,
   GetWorkspaceData,
@@ -108,10 +126,19 @@ import type {
   LeaveWorkspaceResponse,
   ListExpenseCommentsData,
   ListExpenseCommentsResponse,
+  ListNotificationsData,
+  ListNotificationsResponse,
+  ListRecurringData,
+  ListRecurringResponse,
   ListSettlementsData,
   ListSettlementsResponse,
   ListWorkspaceExpensesData,
   ListWorkspaceExpensesResponse,
+  MarkAllNotificationsReadData,
+  MarkAllNotificationsReadResponse,
+  MarkNotificationReadData,
+  MarkNotificationReadResponse,
+  NudgeMemberData,
   PreviewInviteData,
   PreviewInviteResponse,
   RemoveMemberData,
@@ -120,6 +147,14 @@ import type {
   RestoreExpenseResponse,
   RevokeInvitesData,
   RevokeInvitesResponse,
+  SetRecurringActiveData,
+  SetRecurringActiveResponse,
+  SkipRecurringData,
+  SkipRecurringResponse,
+  SubscribePushData,
+  SubscribePushResponse,
+  UnsubscribePushData,
+  UnsubscribePushResponse,
   UpdateCurrentUserData,
   UpdateCurrentUserResponse,
   UpdateExpenseData,
@@ -932,6 +967,296 @@ export const getDirectWorkspaceMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await getDirectWorkspace({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+export const listNotificationsQueryKey = (options?: Options<ListNotificationsData>) =>
+  createQueryKey('listNotifications', options);
+
+/**
+ * Your notifications, newest first
+ */
+export const listNotificationsOptions = (options?: Options<ListNotificationsData>) =>
+  queryOptions<
+    ListNotificationsResponse,
+    DefaultError,
+    ListNotificationsResponse,
+    ReturnType<typeof listNotificationsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listNotifications({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: listNotificationsQueryKey(options),
+  });
+
+/**
+ * Mark every notification read
+ */
+export const markAllNotificationsReadMutation = (
+  options?: Partial<Options<MarkAllNotificationsReadData>>,
+): UseMutationOptions<
+  MarkAllNotificationsReadResponse,
+  DefaultError,
+  Options<MarkAllNotificationsReadData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    MarkAllNotificationsReadResponse,
+    DefaultError,
+    Options<MarkAllNotificationsReadData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await markAllNotificationsRead({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Mark one notification read
+ */
+export const markNotificationReadMutation = (
+  options?: Partial<Options<MarkNotificationReadData>>,
+): UseMutationOptions<
+  MarkNotificationReadResponse,
+  DefaultError,
+  Options<MarkNotificationReadData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    MarkNotificationReadResponse,
+    DefaultError,
+    Options<MarkNotificationReadData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await markNotificationRead({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+export const getPushPublicKeyQueryKey = (options?: Options<GetPushPublicKeyData>) =>
+  createQueryKey('getPushPublicKey', options);
+
+/**
+ * VAPID public key for web push (null when push is off)
+ */
+export const getPushPublicKeyOptions = (options?: Options<GetPushPublicKeyData>) =>
+  queryOptions<
+    GetPushPublicKeyResponse,
+    DefaultError,
+    GetPushPublicKeyResponse,
+    ReturnType<typeof getPushPublicKeyQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getPushPublicKey({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: getPushPublicKeyQueryKey(options),
+  });
+
+/**
+ * Register this browser for push notifications
+ */
+export const subscribePushMutation = (
+  options?: Partial<Options<SubscribePushData>>,
+): UseMutationOptions<SubscribePushResponse, DefaultError, Options<SubscribePushData>> => {
+  const mutationOptions: UseMutationOptions<
+    SubscribePushResponse,
+    DefaultError,
+    Options<SubscribePushData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await subscribePush({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Stop push notifications on this browser
+ */
+export const unsubscribePushMutation = (
+  options?: Partial<Options<UnsubscribePushData>>,
+): UseMutationOptions<UnsubscribePushResponse, DefaultError, Options<UnsubscribePushData>> => {
+  const mutationOptions: UseMutationOptions<
+    UnsubscribePushResponse,
+    DefaultError,
+    Options<UnsubscribePushData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await unsubscribePush({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Remind someone who owes you (once a day per person)
+ */
+export const nudgeMemberMutation = (
+  options?: Partial<Options<NudgeMemberData>>,
+): UseMutationOptions<unknown, DefaultError, Options<NudgeMemberData>> => {
+  const mutationOptions: UseMutationOptions<unknown, DefaultError, Options<NudgeMemberData>> = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await nudgeMember({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+export const listRecurringQueryKey = (options: Options<ListRecurringData>) =>
+  createQueryKey('listRecurring', options);
+
+/**
+ * Recurring expenses in a workspace
+ */
+export const listRecurringOptions = (options: Options<ListRecurringData>) =>
+  queryOptions<
+    ListRecurringResponse,
+    DefaultError,
+    ListRecurringResponse,
+    ReturnType<typeof listRecurringQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listRecurring({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: listRecurringQueryKey(options),
+  });
+
+/**
+ * Repeat an expense on a schedule (creates the first one if already due)
+ */
+export const createRecurringMutation = (
+  options?: Partial<Options<CreateRecurringData>>,
+): UseMutationOptions<CreateRecurringResponse, DefaultError, Options<CreateRecurringData>> => {
+  const mutationOptions: UseMutationOptions<
+    CreateRecurringResponse,
+    DefaultError,
+    Options<CreateRecurringData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createRecurring({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Cancel a recurring expense
+ */
+export const deleteRecurringMutation = (
+  options?: Partial<Options<DeleteRecurringData>>,
+): UseMutationOptions<DeleteRecurringResponse, DefaultError, Options<DeleteRecurringData>> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteRecurringResponse,
+    DefaultError,
+    Options<DeleteRecurringData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteRecurring({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Pause or resume a recurring expense
+ */
+export const setRecurringActiveMutation = (
+  options?: Partial<Options<SetRecurringActiveData>>,
+): UseMutationOptions<
+  SetRecurringActiveResponse,
+  DefaultError,
+  Options<SetRecurringActiveData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    SetRecurringActiveResponse,
+    DefaultError,
+    Options<SetRecurringActiveData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await setRecurringActive({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Skip the next occurrence
+ */
+export const skipRecurringMutation = (
+  options?: Partial<Options<SkipRecurringData>>,
+): UseMutationOptions<SkipRecurringResponse, DefaultError, Options<SkipRecurringData>> => {
+  const mutationOptions: UseMutationOptions<
+    SkipRecurringResponse,
+    DefaultError,
+    Options<SkipRecurringData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await skipRecurring({
         ...options,
         ...fnOptions,
         throwOnError: true,

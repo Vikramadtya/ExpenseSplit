@@ -117,6 +117,69 @@ components:
             avatarUrl:
               type: string
               nullable: true
+    Notification:
+      type: object
+      required: [id, kind, createdAt, message]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+        workspaceId:
+          type: string
+          format: uuid
+          nullable: true
+        payload:
+          type: object
+          additionalProperties: true
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        message:
+          type: object
+          required: [title, body]
+          properties:
+            title:
+              type: string
+            body:
+              type: string
+    RecurringRule:
+      type: object
+      required: [id, workspaceId, interval, nextRunAt, active, template]
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspaceId:
+          type: string
+          format: uuid
+        interval:
+          type: string
+          enum: [DAILY, WEEKLY, MONTHLY]
+        nextRunAt:
+          type: string
+          format: date-time
+        runCount:
+          type: integer
+        active:
+          type: boolean
+        lastError:
+          type: string
+          nullable: true
+        template:
+          type: object
+          properties:
+            description:
+              type: string
+            amount:
+              type: number
+            currency:
+              type: string
     Expense:
       type: object
       required:
@@ -1376,6 +1439,293 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Workspace'
+  /notifications:
+    get:
+      summary: Your notifications, newest first
+      operationId: listNotifications
+      parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 30
+      responses:
+        '200':
+          description: Notifications and the unread count
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [unreadCount, items]
+                properties:
+                  unreadCount:
+                    type: integer
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+  /notifications/read-all:
+    post:
+      summary: Mark every notification read
+      operationId: markAllNotificationsRead
+      responses:
+        '204':
+          description: Done
+  /notifications/{id}/read:
+    patch:
+      summary: Mark one notification read
+      operationId: markNotificationRead
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: Done
+  /push/public-key:
+    get:
+      summary: VAPID public key for web push (null when push is off)
+      operationId: getPushPublicKey
+      responses:
+        '200':
+          description: Key
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publicKey:
+                    type: string
+                    nullable: true
+  /push/subscribe:
+    post:
+      summary: Register this browser for push notifications
+      operationId: subscribePush
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint, keys]
+              properties:
+                endpoint:
+                  type: string
+                keys:
+                  type: object
+                  required: [p256dh, auth]
+                  properties:
+                    p256dh:
+                      type: string
+                    auth:
+                      type: string
+      responses:
+        '204':
+          description: Subscribed
+  /push/unsubscribe:
+    post:
+      summary: Stop push notifications on this browser
+      operationId: unsubscribePush
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint]
+              properties:
+                endpoint:
+                  type: string
+      responses:
+        '204':
+          description: Unsubscribed
+  /workspaces/{workspaceId}/nudges:
+    post:
+      summary: Remind someone who owes you (once a day per person)
+      operationId: nudgeMember
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Reminder sent
+        '429':
+          description: Already reminded in the last 24 hours
+  /workspaces/{workspaceId}/recurring:
+    get:
+      summary: Recurring expenses in a workspace
+      operationId: listRecurring
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Rules, soonest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RecurringRule'
+    post:
+      summary: Repeat an expense on a schedule (creates the first one if already due)
+      operationId: createRecurring
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [description, amount, startDate, interval, payers]
+              properties:
+                description:
+                  type: string
+                amount:
+                  type: number
+                currency:
+                  type: string
+                startDate:
+                  type: string
+                  format: date-time
+                interval:
+                  type: string
+                  enum: [DAILY, WEEKLY, MONTHLY]
+                splitType:
+                  type: string
+                  enum: [EQUAL, EXACT, PERCENTAGE, SHARES]
+                tags:
+                  type: array
+                  items:
+                    type: string
+                payers:
+                  type: array
+                  items:
+                    type: object
+                    required: [userId, amount]
+                    properties:
+                      userId:
+                        type: string
+                        format: uuid
+                      amount:
+                        type: number
+                participants:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '201':
+          description: Rule created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurringRule'
+  /workspaces/{workspaceId}/recurring/{ruleId}:
+    patch:
+      summary: Pause or resume a recurring expense
+      operationId: setRecurringActive
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: ruleId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [active]
+              properties:
+                active:
+                  type: boolean
+      responses:
+        '200':
+          description: Updated rule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurringRule'
+    delete:
+      summary: Cancel a recurring expense
+      operationId: deleteRecurring
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: ruleId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: Cancelled
+  /workspaces/{workspaceId}/recurring/{ruleId}/skip:
+    post:
+      summary: Skip the next occurrence
+      operationId: skipRecurring
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: ruleId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Updated rule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurringRule'
   /workspaces/{workspaceId}/balances:
     get:
       summary: Get net balances for a workspace

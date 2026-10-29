@@ -48,6 +48,36 @@ export type Comment = {
   };
 };
 
+export type Notification = {
+  id: string;
+  kind: string;
+  workspaceId?: string | null;
+  payload?: {
+    [key: string]: unknown;
+  };
+  readAt?: string | null;
+  createdAt: string;
+  message: {
+    title: string;
+    body: string;
+  };
+};
+
+export type RecurringRule = {
+  id: string;
+  workspaceId: string;
+  interval: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  nextRunAt: string;
+  runCount?: number;
+  active: boolean;
+  lastError?: string | null;
+  template: {
+    description?: string;
+    amount?: number;
+    currency?: string;
+  };
+};
+
 export type Expense = {
   id: string;
   workspaceId: string;
@@ -822,6 +852,256 @@ export type GetDirectWorkspaceResponses = {
 
 export type GetDirectWorkspaceResponse =
   GetDirectWorkspaceResponses[keyof GetDirectWorkspaceResponses];
+
+export type ListNotificationsData = {
+  body?: never;
+  path?: never;
+  query?: {
+    limit?: number;
+  };
+  url: '/notifications';
+};
+
+export type ListNotificationsResponses = {
+  /**
+   * Notifications and the unread count
+   */
+  200: {
+    unreadCount: number;
+    items: Array<Notification>;
+  };
+};
+
+export type ListNotificationsResponse =
+  ListNotificationsResponses[keyof ListNotificationsResponses];
+
+export type MarkAllNotificationsReadData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/notifications/read-all';
+};
+
+export type MarkAllNotificationsReadResponses = {
+  /**
+   * Done
+   */
+  204: void;
+};
+
+export type MarkAllNotificationsReadResponse =
+  MarkAllNotificationsReadResponses[keyof MarkAllNotificationsReadResponses];
+
+export type MarkNotificationReadData = {
+  body?: never;
+  path: {
+    id: string;
+  };
+  query?: never;
+  url: '/notifications/{id}/read';
+};
+
+export type MarkNotificationReadResponses = {
+  /**
+   * Done
+   */
+  204: void;
+};
+
+export type MarkNotificationReadResponse =
+  MarkNotificationReadResponses[keyof MarkNotificationReadResponses];
+
+export type GetPushPublicKeyData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/push/public-key';
+};
+
+export type GetPushPublicKeyResponses = {
+  /**
+   * Key
+   */
+  200: {
+    publicKey?: string | null;
+  };
+};
+
+export type GetPushPublicKeyResponse = GetPushPublicKeyResponses[keyof GetPushPublicKeyResponses];
+
+export type SubscribePushData = {
+  body: {
+    endpoint: string;
+    keys: {
+      p256dh: string;
+      auth: string;
+    };
+  };
+  path?: never;
+  query?: never;
+  url: '/push/subscribe';
+};
+
+export type SubscribePushResponses = {
+  /**
+   * Subscribed
+   */
+  204: void;
+};
+
+export type SubscribePushResponse = SubscribePushResponses[keyof SubscribePushResponses];
+
+export type UnsubscribePushData = {
+  body: {
+    endpoint: string;
+  };
+  path?: never;
+  query?: never;
+  url: '/push/unsubscribe';
+};
+
+export type UnsubscribePushResponses = {
+  /**
+   * Unsubscribed
+   */
+  204: void;
+};
+
+export type UnsubscribePushResponse = UnsubscribePushResponses[keyof UnsubscribePushResponses];
+
+export type NudgeMemberData = {
+  body: {
+    userId: string;
+  };
+  path: {
+    workspaceId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/nudges';
+};
+
+export type NudgeMemberErrors = {
+  /**
+   * Already reminded in the last 24 hours
+   */
+  429: unknown;
+};
+
+export type NudgeMemberResponses = {
+  /**
+   * Reminder sent
+   */
+  200: unknown;
+};
+
+export type ListRecurringData = {
+  body?: never;
+  path: {
+    workspaceId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/recurring';
+};
+
+export type ListRecurringResponses = {
+  /**
+   * Rules, soonest first
+   */
+  200: Array<RecurringRule>;
+};
+
+export type ListRecurringResponse = ListRecurringResponses[keyof ListRecurringResponses];
+
+export type CreateRecurringData = {
+  body: {
+    description: string;
+    amount: number;
+    currency?: string;
+    startDate: string;
+    interval: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+    splitType?: 'EQUAL' | 'EXACT' | 'PERCENTAGE' | 'SHARES';
+    tags?: Array<string>;
+    payers: Array<{
+      userId: string;
+      amount: number;
+    }>;
+    participants?: Array<string>;
+  };
+  path: {
+    workspaceId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/recurring';
+};
+
+export type CreateRecurringResponses = {
+  /**
+   * Rule created
+   */
+  201: RecurringRule;
+};
+
+export type CreateRecurringResponse = CreateRecurringResponses[keyof CreateRecurringResponses];
+
+export type DeleteRecurringData = {
+  body?: never;
+  path: {
+    workspaceId: string;
+    ruleId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/recurring/{ruleId}';
+};
+
+export type DeleteRecurringResponses = {
+  /**
+   * Cancelled
+   */
+  204: void;
+};
+
+export type DeleteRecurringResponse = DeleteRecurringResponses[keyof DeleteRecurringResponses];
+
+export type SetRecurringActiveData = {
+  body: {
+    active: boolean;
+  };
+  path: {
+    workspaceId: string;
+    ruleId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/recurring/{ruleId}';
+};
+
+export type SetRecurringActiveResponses = {
+  /**
+   * Updated rule
+   */
+  200: RecurringRule;
+};
+
+export type SetRecurringActiveResponse =
+  SetRecurringActiveResponses[keyof SetRecurringActiveResponses];
+
+export type SkipRecurringData = {
+  body?: never;
+  path: {
+    workspaceId: string;
+    ruleId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/recurring/{ruleId}/skip';
+};
+
+export type SkipRecurringResponses = {
+  /**
+   * Updated rule
+   */
+  200: RecurringRule;
+};
+
+export type SkipRecurringResponse = SkipRecurringResponses[keyof SkipRecurringResponses];
 
 export type GetBalancesData = {
   body?: never;

@@ -6,6 +6,7 @@ import {
   getWorkspaceMembersOptions,
   getWorkspaceOptions,
   createExpenseMutation,
+  createRecurringMutation,
 } from '../../../api/@tanstack/react-query.gen';
 
 import { X, Receipt, DollarSign, Calendar, User, Tag } from 'lucide-react';
@@ -34,6 +35,8 @@ export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId 
   const { data: members = [] } = useQuery(getWorkspaceMembersOptions({ path: { workspaceId } }));
   const { data: workspace } = useQuery(getWorkspaceOptions({ path: { workspaceId } }));
   const mutation = useMutation(createExpenseMutation());
+  const recurringMutation = useMutation(createRecurringMutation());
+  const [repeat, setRepeat] = useState<'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'>('NONE');
 
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState<number | ''>('');
@@ -117,6 +120,35 @@ export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId 
           .filter(([_, amt]) => amt > 0)
           .map(([userId, amount]) => ({ userId, amount }))
       : [{ userId: paidBy, amount: Number(amount) }];
+
+    if (repeat !== 'NONE') {
+      // A repeating expense is a rule: the server creates this one now and the next ones on schedule.
+      await recurringMutation.mutateAsync({
+        path: { workspaceId },
+        body: {
+          description,
+          amount: Number(amount),
+          currency,
+          startDate: new Date(date).toISOString(),
+          interval: repeat,
+          splitType,
+          tags,
+          payers,
+          participants,
+          exactAmounts:
+            splitType === 'EXACT'
+              ? Object.entries(exactAmounts).map(([userId, amount]) => ({ userId, amount }))
+              : undefined,
+          percentages:
+            splitType === 'PERCENTAGE'
+              ? Object.entries(percentages).map(([userId, percentage]) => ({ userId, percentage }))
+              : undefined,
+        } as any,
+      });
+      queryClient.invalidateQueries();
+      onClose();
+      return;
+    }
 
     await mutation.mutateAsync({
       path: { workspaceId },
@@ -213,6 +245,21 @@ export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId 
                     required
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                  Repeats
+                </label>
+                <select
+                  value={repeat}
+                  onChange={(e) => setRepeat(e.target.value as typeof repeat)}
+                  className="w-full rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                >
+                  <option value="NONE">Never</option>
+                  <option value="DAILY">Every day</option>
+                  <option value="WEEKLY">Every week</option>
+                  <option value="MONTHLY">Every month</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">

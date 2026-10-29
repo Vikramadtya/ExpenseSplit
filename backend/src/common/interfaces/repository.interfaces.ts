@@ -44,9 +44,14 @@ export interface NewExpense {
   tags: string[];
   recurringInterval: 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY';
   splitInput: SplitInput;
+  /** Set when a recurring rule generated this expense. */
+  recurringRuleId?: string;
+  occurrenceAt?: Date;
 }
 
-export type ExpensePatch = Partial<Omit<NewExpense, 'workspaceId' | 'createdById'>>;
+export type ExpensePatch = Partial<
+  Omit<NewExpense, 'workspaceId' | 'createdById' | 'recurringRuleId' | 'occurrenceAt'>
+>;
 
 export interface NewSplit {
   userId: string;
@@ -149,6 +154,7 @@ export interface IUsersRepository {
       upiVpa: string | null;
       paypalMe: string | null;
       venmoHandle: string | null;
+      mutedNotificationKinds: string[];
     }>,
   ): Promise<any>;
   /** True when both users belong to at least one common workspace (or are the same user). */
