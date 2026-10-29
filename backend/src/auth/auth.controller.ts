@@ -2,7 +2,9 @@ import { Controller, Get, UseGuards, Req, Res } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
+import { Public } from './decorators';
 
+@Public()
 @Controller('api/v1/auth')
 export class AuthController {
   constructor(

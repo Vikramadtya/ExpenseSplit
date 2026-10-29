@@ -1,26 +1,14 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  Param,
-  Post,
-  Patch,
-  Delete,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Patch, Delete, Req } from '@nestjs/common';
 import { WorkspacesService } from './workspaces.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Roles } from '../auth/decorators';
 
 interface RequestWithUser extends Request {
   user: { id: string };
 }
 
-@UseGuards(JwtAuthGuard)
 @Controller('api/v1')
 export class WorkspacesController {
   constructor(private readonly workspacesService: WorkspacesService) {}
@@ -51,18 +39,19 @@ export class WorkspacesController {
   }
 
   @Post('workspaces/:workspaceId/members')
+  @Roles('ADMIN')
   @HttpCode(201)
   async inviteMember(@Param('workspaceId') workspaceId: string, @Body() body: InviteMemberDto) {
     return this.workspacesService.inviteMember(workspaceId, body.email);
   }
 
   @Get('workspaces/:workspaceId/activity')
-  @UseGuards(JwtAuthGuard)
   async getActivity(@Param('workspaceId') workspaceId: string) {
     return this.workspacesService.getActivity(workspaceId);
   }
 
   @Patch('workspaces/:workspaceId')
+  @Roles('ADMIN')
   async updateWorkspace(
     @Param('workspaceId') workspaceId: string,
     @Body() body: UpdateWorkspaceDto,
@@ -71,12 +60,14 @@ export class WorkspacesController {
   }
 
   @Delete('workspaces/:workspaceId')
+  @Roles('ADMIN')
   @HttpCode(204)
   async deleteWorkspace(@Param('workspaceId') workspaceId: string) {
     return this.workspacesService.deleteWorkspace(workspaceId);
   }
 
   @Delete('workspaces/:workspaceId/members/:userId')
+  @Roles('ADMIN')
   @HttpCode(204)
   async removeMember(@Param('workspaceId') workspaceId: string, @Param('userId') userId: string) {
     return this.workspacesService.removeMember(workspaceId, userId);

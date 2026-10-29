@@ -1,3 +1,8 @@
+import type { Money } from '../money/money';
+import type { SplitInput, SplitType } from '../../expenses/strategies/split.strategy';
+
+export type Role = 'ADMIN' | 'MEMBER';
+
 // ─── Workspace Repository ───────────────────────────────────────────────────
 export interface IWorkspacesRepository {
   findAll(userId: string): Promise<any[]>;
@@ -7,6 +12,8 @@ export interface IWorkspacesRepository {
   create(data: { name: string; defaultCurrency: string }): Promise<any>;
   addMember(workspaceId: string, userId: string, role?: string): Promise<any>;
   getMembers(workspaceId: string): Promise<any[]>;
+  findMemberRole(workspaceId: string, userId: string): Promise<Role | null>;
+  allAreMembers(workspaceId: string, userIds: string[]): Promise<boolean>;
   getActivity(workspaceId: string): Promise<any[]>;
   update(id: string, data: { name?: string; defaultCurrency?: string }): Promise<any>;
   delete(id: string): Promise<void>;
@@ -15,26 +22,88 @@ export interface IWorkspacesRepository {
 export const IWorkspacesRepositoryToken = Symbol('IWorkspacesRepository');
 
 // ─── Expenses Repository ─────────────────────────────────────────────────────
+export interface NewExpense {
+  workspaceId: string;
+  createdById: string;
+  description: string;
+  amount: string;
+  currency: string;
+  date: Date;
+  splitType: SplitType;
+  type: 'EXPENSE' | 'TRANSFER';
+  tags: string[];
+  recurringInterval: 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  splitInput: SplitInput;
+}
+
+export type ExpensePatch = Partial<Omit<NewExpense, 'workspaceId' | 'createdById'>>;
+
+export interface NewSplit {
+  userId: string;
+  amountOwed: string;
+  amountPaid: string;
+}
+
+export interface ExpenseFilter {
+  q?: string;
+  tags?: string[];
+  currency?: string;
+  from?: Date;
+  to?: Date;
+  after?: { date: Date; id: string };
+  limit: number;
+}
+
 export interface IExpensesRepository {
-  findByWorkspace(workspaceId: string): Promise<any[]>;
+  findPage(workspaceId: string, filter: ExpenseFilter): Promise<any[]>;
   findById(id: string): Promise<any>;
-  create(data: any): Promise<any>;
-  update(id: string, data: any): Promise<any>;
+  /** Inserts the expense and all its splits atomically. */
+  createWithSplits(expense: NewExpense, splits: NewSplit[]): Promise<any>;
+  /**
+   * Updates the expense (and replaces its splits when given) atomically, bumping `version`.
+   * Resolves to a falsy value when `expectedVersion` no longer matches.
+   */
+  updateWithSplits(
+    id: string,
+    patch: ExpensePatch,
+    splits: NewSplit[] | null,
+    expectedVersion?: number,
+  ): Promise<any>;
   delete(id: string): Promise<void>;
-  createSplit(data: any): Promise<any>;
-  getSplits(expenseId: string): Promise<any[]>;
 }
 export const IExpensesRepositoryToken = Symbol('IExpensesRepository');
 
 // ─── Balances Repository ─────────────────────────────────────────────────────
+export interface NetBalance {
+  userId: string;
+  currency: string;
+  net: Money;
+}
+
+export interface MemberNetBalance extends NetBalance {
+  workspaceId: string;
+}
+
+export interface SplitRecord {
+  expenseId: string;
+  userId: string;
+  owed: Money;
+  paid: Money;
+}
+
+export interface SettlementRecord {
+  payerId: string;
+  payeeId: string;
+  amount: Money;
+}
+
 export interface IBalancesRepository {
-  getNetBalances(workspaceId: string): Promise<Array<{ userId: string; net: number }>>;
-  getExpenseDebts(
-    workspaceId: string,
-  ): Promise<Array<{ debtor: string; creditor: string; amount: number }>>;
-  getExpenseDebtsByWorkspaces(
-    workspaceIds: string[],
-  ): Promise<Array<{ workspaceId: string; debtor: string; creditor: string; amount: number }>>;
+  /** Positive net = the member is owed money; negative = the member owes money. */
+  getNetBalances(workspaceId: string): Promise<NetBalance[]>;
+  /** Net balances of every member of every workspace that `userId` belongs to. */
+  getNetBalancesForMember(userId: string): Promise<MemberNetBalance[]>;
+  getSplitRecords(workspaceId: string, currency: string): Promise<SplitRecord[]>;
+  getSettlementRecords(workspaceId: string, currency: string): Promise<SettlementRecord[]>;
 }
 export const IBalancesRepositoryToken = Symbol('IBalancesRepository');
 
@@ -42,7 +111,7 @@ export const IBalancesRepositoryToken = Symbol('IBalancesRepository');
 export interface ISettlementsRepository {
   create(
     workspaceId: string,
-    data: { payerId: string; payeeId: string; amount: number; date: string },
+    data: { payerId: string; payeeId: string; amount: string; currency: string; date: Date },
   ): Promise<any>;
   findByWorkspace(workspaceId: string): Promise<any[]>;
 }
@@ -51,6 +120,7 @@ export const ISettlementsRepositoryToken = Symbol('ISettlementsRepository');
 // ─── Users Repository ────────────────────────────────────────────────────────
 export interface IUsersRepository {
   findById(id: string): Promise<any>;
+  findByIds(ids: string[]): Promise<any[]>;
   findByEmail(email: string): Promise<any>;
   create(data: {
     email: string;
@@ -62,6 +132,7 @@ export interface IUsersRepository {
     id: string,
     data: Partial<{ name: string; avatarUrl: string; isRegistered: boolean }>,
   ): Promise<any>;
-  findAll(): Promise<any[]>;
+  /** True when both users belong to at least one common workspace (or are the same user). */
+  sharesWorkspace(userA: string, userB: string): Promise<boolean>;
 }
 export const IUsersRepositoryToken = Symbol('IUsersRepository');

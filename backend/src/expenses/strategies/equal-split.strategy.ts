@@ -1,35 +1,17 @@
-import { SplitStrategy, SplitResult } from './split.strategy';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { Money } from '../../common/money/money';
+import { SplitInput, SplitStrategy } from './split.strategy';
+import { allocateByWeight } from './weighted';
 
+@Injectable()
 export class EqualSplitStrategy implements SplitStrategy {
-  calculateSplits(totalAmount: number, participants: string[]): SplitResult[] {
-    if (participants.length === 0) return [];
+  readonly type = 'EQUAL' as const;
 
-    const count = participants.length;
-    // Calculate precise float base amount
-    const baseAmount = totalAmount / count;
-    // Round to 2 decimal places to get realistic currency values
-    const roundedAmount = Math.round(baseAmount * 100) / 100;
-
-    const currentTotal = roundedAmount * count;
-    // Calculate the difference due to rounding (e.g. 100 / 3 = 33.33 * 3 = 99.99, difference is 0.01)
-    let remainder = Math.round((totalAmount - currentTotal) * 100) / 100;
-
-    return participants.map((userId) => {
-      let finalAmount = roundedAmount;
-
-      // Distribute the remainder iteratively (1 cent at a time)
-      if (remainder > 0) {
-        finalAmount += 0.01;
-        remainder -= 0.01;
-      } else if (remainder < 0) {
-        finalAmount -= 0.01;
-        remainder += 0.01;
-      }
-
-      return {
-        userId,
-        amountOwed: Math.round(finalAmount * 100) / 100,
-      };
-    });
+  allocate(total: Money, { participants }: SplitInput) {
+    if (!participants?.length) throw new BadRequestException('Participants must be provided');
+    return allocateByWeight(
+      total,
+      participants.map((userId) => ({ userId, weight: 1 })),
+    );
   }
 }

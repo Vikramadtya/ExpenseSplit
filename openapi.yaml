@@ -109,6 +109,7 @@ components:
           - EQUAL
           - EXACT
           - PERCENTAGE
+          - SHARES
         paidBy:
           type: string
           format: uuid
@@ -124,6 +125,9 @@ components:
         currency:
           type: string
           default: USD
+        version:
+          type: integer
+          description: Increments on every edit; send back as expectedVersion to detect conflicts
         type:
           type: string
           enum:
@@ -378,6 +382,7 @@ components:
           - EQUAL
           - EXACT
           - PERCENTAGE
+          - SHARES
         groupId:
           type: string
           format: uuid
@@ -706,11 +711,39 @@ paths:
           type: string
       - name: tags
         in: query
+        description: Comma-separated; matches expenses having any of the tags
         schema:
           type: string
+      - name: from
+        in: query
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        schema:
+          type: string
+          format: date-time
+      - name: cursor
+        in: query
+        description: Value of the `x-next-cursor` header from the previous page
+        schema:
+          type: string
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
       responses:
         '200':
-          description: List of expenses
+          description: One page of expenses, newest first
+          headers:
+            x-next-cursor:
+              description: Present when more pages exist
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -757,6 +790,7 @@ paths:
                   - EQUAL
                   - EXACT
                   - PERCENTAGE
+                  - SHARES
                   default: EQUAL
                 payers:
                   type: array
@@ -814,6 +848,19 @@ paths:
                         type: string
                         format: uuid
                       percentage:
+                        type: number
+                shares:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                    - userId
+                    - shares
+                    properties:
+                      userId:
+                        type: string
+                        format: uuid
+                      shares:
                         type: number
                 currency:
                   type: string
@@ -873,6 +920,7 @@ paths:
                   - EQUAL
                   - EXACT
                   - PERCENTAGE
+                  - SHARES
                 payers:
                   type: array
                   items:
@@ -885,6 +933,25 @@ paths:
                       amount:
                         type: number
                         format: float
+                expectedVersion:
+                  type: integer
+                  description: Fails with 409 if the expense has changed since this version
+                paidBy:
+                  type: string
+                  format: uuid
+                shares:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                    - userId
+                    - shares
+                    properties:
+                      userId:
+                        type: string
+                        format: uuid
+                      shares:
+                        type: number
                 participants:
                   type: array
                   items:
@@ -1041,6 +1108,9 @@ paths:
                 amount:
                   type: number
                   minimum: 0.01
+                currency:
+                  type: string
+                  description: Defaults to the workspace currency
                 date:
                   type: string
                   format: date-time

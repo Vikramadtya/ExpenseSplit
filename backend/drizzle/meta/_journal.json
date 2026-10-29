@@ -5,8 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1787568639980,
-      "tag": "0000_goofy_microbe",
+      "when": 1793272776169,
+      "tag": "0000_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793272869703,
+      "tag": "0001_phase0_money_indexes",
       "breakpoints": true
     }
   ]

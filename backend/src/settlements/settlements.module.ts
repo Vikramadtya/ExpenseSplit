@@ -1,5 +1,5 @@
 import { ISettlementsRepositoryToken } from '../common/interfaces/repository.interfaces';
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { BalancesModule } from '../balances/balances.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { DatabaseModule } from '../database/database.module';
@@ -8,7 +8,7 @@ import { SettlementsService } from './settlements.service';
 import { SettlementsRepository } from './settlements.repository';
 
 @Module({
-  imports: [DatabaseModule, forwardRef(() => BalancesModule), forwardRef(() => WorkspacesModule)],
+  imports: [DatabaseModule, BalancesModule, WorkspacesModule],
   controllers: [SettlementsController],
   providers: [
     SettlementsService,

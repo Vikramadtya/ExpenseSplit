@@ -1,11 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { DRIZZLE_CLIENT } from '../database/database.module';
 import type { DrizzleDb } from '../database/database.module';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray, sql } from 'drizzle-orm';
+import type { IWorkspacesRepository, Role } from '../common/interfaces/repository.interfaces';
 import { workspaceMembers, workspaces, expenses, settlements } from '../database/schema';
 
 @Injectable()
-export class WorkspacesRepository {
+export class WorkspacesRepository implements IWorkspacesRepository {
   constructor(@Inject(DRIZZLE_CLIENT) private readonly db: DrizzleDb) {}
 
   async findAll(userId: string): Promise<any[]> {
@@ -65,6 +66,32 @@ export class WorkspacesRepository {
       role: m.role,
       joinedAt: m.joinedAt,
     }));
+  }
+
+  async findMemberRole(workspaceId: string, userId: string): Promise<Role | null> {
+    const [member] = await this.db
+      .select({ role: workspaceMembers.role })
+      .from(workspaceMembers)
+      .where(
+        and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)),
+      )
+      .limit(1);
+    return member?.role ?? null;
+  }
+
+  async allAreMembers(workspaceId: string, userIds: string[]): Promise<boolean> {
+    const unique = [...new Set(userIds)];
+    if (unique.length === 0) return true;
+    const [row] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, workspaceId),
+          inArray(workspaceMembers.userId, unique),
+        ),
+      );
+    return row.count === unique.length;
   }
 
   async getActivity(workspaceId: string): Promise<any[]> {

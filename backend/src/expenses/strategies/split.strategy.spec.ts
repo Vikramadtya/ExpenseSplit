@@ -1,79 +1,82 @@
-import { SplitContext } from './split.context';
+import { BadRequestException } from '@nestjs/common';
+import { Money } from '../../common/money/money';
 import { EqualSplitStrategy } from './equal-split.strategy';
 import { ExactSplitStrategy } from './exact-split.strategy';
-import { BadRequestException } from '@nestjs/common';
+import { PercentageSplitStrategy } from './percentage-split.strategy';
+import { SharesSplitStrategy } from './shares-split.strategy';
+import { SplitStrategyRegistry } from './split-strategy.registry';
 
-describe('Split Strategies', () => {
-  describe('EqualSplitStrategy', () => {
-    it('should split the total amount equally among all participants', () => {
-      const strategy = new EqualSplitStrategy();
-      const context = new SplitContext(strategy);
+const usd = (amount: number) => Money.fromMajor(amount, 'USD');
+const minors = (r: { owed: Money }[]) => r.map((x) => x.owed.minor);
 
-      const totalAmount = 100;
-      const participants = ['A', 'B', 'C', 'D'];
-
-      const result = context.executeSplit(totalAmount, participants, []);
-
-      expect(result).toHaveLength(4);
-      result.forEach((split) => {
-        expect(split.amountOwed).toBe(25);
-      });
-    });
-
-    it('should handle rounding remainders gracefully', () => {
-      const strategy = new EqualSplitStrategy();
-      const context = new SplitContext(strategy);
-
-      const totalAmount = 100;
-      const participants = ['A', 'B', 'C'];
-
-      const result = context.executeSplit(totalAmount, participants, []);
-
-      // 100 / 3 = 33.33...
-      // Expected splits: 33.34, 33.33, 33.33
-      const sum = result.reduce((acc, curr) => acc + curr.amountOwed, 0);
-      expect(sum).toBe(100);
-
-      // Ensure no split is more than 0.01 apart
-      const amounts = result.map((r) => r.amountOwed);
-      const max = Math.max(...amounts);
-      const min = Math.min(...amounts);
-      expect(max - min).toBeCloseTo(0.01, 2);
-    });
+describe('split strategies', () => {
+  it('equal: spreads the remainder cent by cent', () => {
+    const r = new EqualSplitStrategy().allocate(usd(100), { participants: ['a', 'b', 'c'] });
+    expect(minors(r)).toEqual([3334, 3333, 3333]);
   });
 
-  describe('ExactSplitStrategy', () => {
-    it('should split according to exact amounts provided', () => {
-      const strategy = new ExactSplitStrategy();
-      const context = new SplitContext(strategy);
+  it('equal: requires participants', () => {
+    expect(() => new EqualSplitStrategy().allocate(usd(10), {})).toThrow(BadRequestException);
+  });
 
-      const totalAmount = 100;
-      const participants = ['A', 'B'];
-      const exactAmounts = [
-        { userId: 'A', amount: 70 },
-        { userId: 'B', amount: 30 },
-      ];
-
-      const result = context.executeSplit(totalAmount, participants, exactAmounts);
-
-      expect(result).toContainEqual({ userId: 'A', amountOwed: 70 });
-      expect(result).toContainEqual({ userId: 'B', amountOwed: 30 });
+  it('exact: accepts amounts that sum to the total', () => {
+    const r = new ExactSplitStrategy().allocate(usd(10), {
+      exactAmounts: [
+        { userId: 'a', amount: 7.5 },
+        { userId: 'b', amount: 2.5 },
+      ],
     });
+    expect(minors(r)).toEqual([750, 250]);
+  });
 
-    it('should throw an error if exact amounts do not sum to total', () => {
-      const strategy = new ExactSplitStrategy();
-      const context = new SplitContext(strategy);
+  it('exact: rejects a wrong sum and duplicates', () => {
+    const s = new ExactSplitStrategy();
+    expect(() => s.allocate(usd(10), { exactAmounts: [{ userId: 'a', amount: 9 }] })).toThrow(
+      BadRequestException,
+    );
+    expect(() =>
+      s.allocate(usd(10), {
+        exactAmounts: [
+          { userId: 'a', amount: 5 },
+          { userId: 'a', amount: 5 },
+        ],
+      }),
+    ).toThrow(BadRequestException);
+  });
 
-      const totalAmount = 100;
-      const participants = ['A', 'B'];
-      const exactAmounts = [
-        { userId: 'A', amount: 70 },
-        { userId: 'B', amount: 20 },
-      ];
-
-      expect(() => {
-        context.executeSplit(totalAmount, participants, exactAmounts);
-      }).toThrow(BadRequestException);
+  it('percentage: allocates exactly with no lost cents', () => {
+    const r = new PercentageSplitStrategy().allocate(usd(100), {
+      percentages: [
+        { userId: 'a', percentage: 33.33 },
+        { userId: 'b', percentage: 33.33 },
+        { userId: 'c', percentage: 33.34 },
+      ],
     });
+    expect(minors(r).reduce((a, b) => a + b, 0)).toBe(10000);
+    expect(minors(r)).toEqual([3333, 3333, 3334]);
+  });
+
+  it('percentage: rejects totals other than 100', () => {
+    expect(() =>
+      new PercentageSplitStrategy().allocate(usd(10), {
+        percentages: [{ userId: 'a', percentage: 50 }],
+      }),
+    ).toThrow(BadRequestException);
+  });
+
+  it('shares: weights by share count', () => {
+    const r = new SharesSplitStrategy().allocate(usd(90), {
+      shares: [
+        { userId: 'a', shares: 2 },
+        { userId: 'b', shares: 1 },
+      ],
+    });
+    expect(minors(r)).toEqual([6000, 3000]);
+  });
+
+  it('registry resolves by type and rejects unknown types', () => {
+    const registry = new SplitStrategyRegistry([new EqualSplitStrategy()]);
+    expect(registry.get('EQUAL').type).toBe('EQUAL');
+    expect(() => registry.get('SHARES')).toThrow(BadRequestException);
   });
 });

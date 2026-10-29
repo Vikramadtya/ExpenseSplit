@@ -7,13 +7,17 @@ import {
   text,
   pgEnum,
   boolean,
+  integer,
+  jsonb,
+  index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 
 // --- ENUMS ---
 
 export const roleEnum = pgEnum('role', ['ADMIN', 'MEMBER']);
-export const splitTypeEnum = pgEnum('split_type', ['EQUAL', 'EXACT', 'PERCENTAGE']);
+export const splitTypeEnum = pgEnum('split_type', ['EQUAL', 'EXACT', 'PERCENTAGE', 'SHARES']);
 export const expenseTypeEnum = pgEnum('expense_type', ['EXPENSE', 'TRANSFER']);
 export const recurringIntervalEnum = pgEnum('recurring_interval', [
   'NONE',
@@ -41,66 +45,96 @@ export const workspaces = pgTable('workspaces', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
-export const workspaceMembers = pgTable('workspace_members', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  workspaceId: uuid('workspace_id')
-    .notNull()
-    .references(() => workspaces.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  role: roleEnum('role').default('MEMBER').notNull(),
-  joinedAt: timestamp('joined_at').defaultNow().notNull(),
-});
+export const workspaceMembers = pgTable(
+  'workspace_members',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: roleEnum('role').default('MEMBER').notNull(),
+    joinedAt: timestamp('joined_at').defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex('workspace_members_workspace_user_uq').on(t.workspaceId, t.userId),
+    index('workspace_members_user_idx').on(t.userId),
+  ],
+);
 
-export const expenses = pgTable('expenses', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  workspaceId: uuid('workspace_id')
-    .notNull()
-    .references(() => workspaces.id, { onDelete: 'cascade' }),
-  createdById: uuid('created_by_id')
-    .notNull()
-    .references(() => users.id),
-  description: varchar('description', { length: 255 }).notNull(),
-  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
-  date: timestamp('date').notNull(),
-  splitType: splitTypeEnum('split_type').default('EQUAL').notNull(),
-  type: expenseTypeEnum('type').default('EXPENSE').notNull(),
-  tags: text('tags').array(),
-  recurringInterval: recurringIntervalEnum('recurring_interval').default('NONE').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+export const expenses = pgTable(
+  'expenses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    createdById: uuid('created_by_id')
+      .notNull()
+      .references(() => users.id),
+    description: varchar('description', { length: 255 }).notNull(),
+    amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+    date: timestamp('date').notNull(),
+    splitType: splitTypeEnum('split_type').default('EQUAL').notNull(),
+    type: expenseTypeEnum('type').default('EXPENSE').notNull(),
+    tags: text('tags').array(),
+    currency: varchar('currency', { length: 3 }).notNull().default('USD'),
+    version: integer('version').notNull().default(1),
+    splitInput: jsonb('split_input'),
+    recurringInterval: recurringIntervalEnum('recurring_interval').default('NONE').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [
+    index('expenses_workspace_date_idx').on(t.workspaceId, t.date.desc(), t.id.desc()),
+    index('expenses_tags_gin_idx').using('gin', t.tags),
+    index('expenses_description_trgm_idx').using('gin', sql`${t.description} gin_trgm_ops`),
+  ],
+);
 
-export const expenseSplits = pgTable('expense_splits', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  workspaceId: uuid('workspace_id')
-    .notNull()
-    .references(() => workspaces.id, { onDelete: 'cascade' }),
-  expenseId: uuid('expense_id')
-    .notNull()
-    .references(() => expenses.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  amountOwed: decimal('amount_owed', { precision: 12, scale: 2 }).notNull().default('0'),
-  amountPaid: decimal('amount_paid', { precision: 12, scale: 2 }).notNull().default('0'),
-});
+export const expenseSplits = pgTable(
+  'expense_splits',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    expenseId: uuid('expense_id')
+      .notNull()
+      .references(() => expenses.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    amountOwed: decimal('amount_owed', { precision: 12, scale: 2 }).notNull().default('0'),
+    amountPaid: decimal('amount_paid', { precision: 12, scale: 2 }).notNull().default('0'),
+  },
+  (t) => [
+    uniqueIndex('expense_splits_expense_user_uq').on(t.expenseId, t.userId),
+    index('expense_splits_workspace_user_idx').on(t.workspaceId, t.userId),
+  ],
+);
 
-export const settlements = pgTable('settlements', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  workspaceId: uuid('workspace_id')
-    .notNull()
-    .references(() => workspaces.id, { onDelete: 'cascade' }),
-  payerId: uuid('payer_id')
-    .notNull()
-    .references(() => users.id),
-  payeeId: uuid('payee_id')
-    .notNull()
-    .references(() => users.id),
-  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
-  date: timestamp('date').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+export const settlements = pgTable(
+  'settlements',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    payerId: uuid('payer_id')
+      .notNull()
+      .references(() => users.id),
+    payeeId: uuid('payee_id')
+      .notNull()
+      .references(() => users.id),
+    amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+    currency: varchar('currency', { length: 3 }).notNull().default('USD'),
+    date: timestamp('date').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [index('settlements_workspace_idx').on(t.workspaceId)],
+);
 
 // --- RELATIONS ---
 

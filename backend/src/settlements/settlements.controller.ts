@@ -1,32 +1,21 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Param,
-  Body,
-  HttpCode,
-  HttpStatus,
-  UsePipes,
-  UseGuards,
-  Req,
-} from '@nestjs/common';
-import { ZodValidationPipe, createZodDto } from 'nestjs-zod';
+import { Controller, Get, Post, Param, Body, HttpCode, HttpStatus, Req } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { SettlementsService } from './settlements.service';
 import { CreateSettlementDto } from './dto/create-settlement.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 const GlobalSettlementSchema = z.object({
   payeeId: z.string().uuid(),
   amount: z.number().positive(),
-  currency: z.string().default('USD'),
+  currency: z
+    .string()
+    .regex(/^[A-Za-z]{3}$/)
+    .transform((c) => c.toUpperCase()),
 });
 
 export class GlobalSettlementDto extends createZodDto(GlobalSettlementSchema) {}
 
 @Controller('api/v1')
-@UsePipes(ZodValidationPipe)
-@UseGuards(JwtAuthGuard)
 export class SettlementsController {
   constructor(private readonly settlementsService: SettlementsService) {}
 

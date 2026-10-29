@@ -1,10 +1,4 @@
-import {
-  Inject,
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-  forwardRef,
-} from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { BalancesService } from '../balances/balances.service';
 import type { IWorkspacesRepository } from '../common/interfaces/repository.interfaces';
 import { IWorkspacesRepositoryToken } from '../common/interfaces/repository.interfaces';
@@ -18,7 +12,6 @@ export class WorkspacesService {
       getActivity(id: string): Promise<any[]>;
     },
     private readonly usersService: UsersService,
-    @Inject(forwardRef(() => BalancesService))
     private readonly balancesService: BalancesService,
   ) {}
 
@@ -81,16 +74,11 @@ export class WorkspacesService {
   }
 
   async removeMember(workspaceId: string, userId: string) {
-    // Ensure the user doesn't have non-zero net balance
-    const balances = await this.balancesService.getBalances(workspaceId);
-    const userBalance = balances.byCurrency[0]?.perMember?.find((m: any) => m.userId === userId);
-
-    if (userBalance && userBalance.net !== 0) {
+    if (await this.balancesService.hasOutstandingBalance(workspaceId, userId)) {
       throw new BadRequestException(
         'Cannot remove member with non-zero balance. Settle debts first.',
       );
     }
-
     return this.repository.removeMember(workspaceId, userId);
   }
 }

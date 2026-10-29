@@ -1,26 +1,21 @@
 import { Injectable, Inject } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
 import { DRIZZLE_CLIENT } from './../database/database.module';
 import type { DrizzleDb } from '../database/database.module';
 import { settlements } from '../database/schema';
-import { eq } from 'drizzle-orm';
+import type { ISettlementsRepository } from '../common/interfaces/repository.interfaces';
 
 @Injectable()
-export class SettlementsRepository {
+export class SettlementsRepository implements ISettlementsRepository {
   constructor(@Inject(DRIZZLE_CLIENT) private readonly db: DrizzleDb) {}
 
   async create(
     workspaceId: string,
-    data: { payerId: string; payeeId: string; amount: number; date: string },
+    data: { payerId: string; payeeId: string; amount: string; currency: string; date: Date },
   ): Promise<any> {
     const [settlement] = await this.db
       .insert(settlements)
-      .values({
-        workspaceId,
-        payerId: data.payerId,
-        payeeId: data.payeeId,
-        amount: data.amount.toString(),
-        date: new Date(data.date),
-      })
+      .values({ workspaceId, ...data })
       .returning();
     return settlement;
   }
@@ -28,10 +23,7 @@ export class SettlementsRepository {
   async findByWorkspace(workspaceId: string): Promise<any[]> {
     return this.db.query.settlements.findMany({
       where: eq(settlements.workspaceId, workspaceId),
-      with: {
-        payer: true,
-        payee: true,
-      },
+      with: { payer: true, payee: true },
       orderBy: (settlements, { desc }) => [desc(settlements.createdAt)],
     });
   }

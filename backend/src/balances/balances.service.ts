@@ -1,162 +1,119 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { IBalancesRepositoryToken } from '../common/interfaces/repository.interfaces';
-import type { IBalancesRepository } from '../common/interfaces/repository.interfaces';
-import { WorkspacesService } from '../workspaces/workspaces.service';
+import type { IBalancesRepository, NetBalance } from '../common/interfaces/repository.interfaces';
 import { UsersService } from '../users/users.service';
-import { DebtSimplificationAlgorithm } from './algorithms/debt-simplification.algorithm';
+import { DebtSimplificationAlgorithm, MinorDebt } from './algorithms/debt-simplification.algorithm';
+import { pairwiseDebts } from './algorithms/pairwise-debts';
+
+const toMajorDebt = (d: MinorDebt, currency: string) => ({
+  debtor: d.debtor,
+  creditor: d.creditor,
+  amount: d.minor / 100,
+  currency,
+});
+
+const groupBy = <T>(items: T[], key: (item: T) => string) => {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const k = key(item);
+    groups.set(k, [...(groups.get(k) ?? []), item]);
+  }
+  return groups;
+};
 
 @Injectable()
 export class BalancesService {
+  private readonly algorithm = new DebtSimplificationAlgorithm();
+
   constructor(
     @Inject(IBalancesRepositoryToken)
     private readonly repository: IBalancesRepository,
-    private readonly workspacesService: WorkspacesService,
     private readonly usersService: UsersService,
   ) {}
 
+  /** Balances of one workspace, or (with an empty id) of everything the user belongs to. */
   async getBalances(workspaceId: string, userId?: string) {
-    if (!workspaceId) {
-      return { byCurrency: [] };
-    }
+    const nets: NetBalance[] = workspaceId
+      ? await this.repository.getNetBalances(workspaceId)
+      : userId
+        ? await this.repository.getNetBalancesForMember(userId)
+        : [];
 
-    const workspace = await this.workspacesService.getWorkspace(workspaceId);
-    if (!workspace) throw new NotFoundException('Workspace not found');
-
-    const netBalances = await this.repository.getNetBalances(workspaceId);
-
-    // If userId is provided, calculate owedToYou and youOwe
-    let owedToYou = 0;
-    let youOwe = 0;
-    if (userId) {
-      const myNet = netBalances.find((b) => b.userId === userId)?.net || 0;
-      if (myNet > 0) owedToYou = myNet;
-      if (myNet < 0) youOwe = Math.abs(myNet);
-    }
-
-    return {
-      byCurrency: [
-        {
-          currency: workspace.defaultCurrency,
-          total: netBalances.reduce((acc, curr) => acc + Math.abs(curr.net), 0) / 2,
-          owedToYou,
-          youOwe,
-          perMember: netBalances.map((b) => ({ userId: b.userId, net: b.net })),
-        },
-      ],
-    };
-  }
-
-  async getDebts(workspaceId: string, simplified: boolean = true) {
-    if (!workspaceId) return [];
-
-    const workspace = await this.workspacesService.getWorkspace(workspaceId);
-    const rawDebts = await this.repository.getExpenseDebts(workspaceId);
-
-    let debtsToReturn = rawDebts.map((d) => ({
-      debtor: d.debtor,
-      creditor: d.creditor,
-      amount: d.amount,
-      currency: workspace.defaultCurrency,
-    }));
-
-    if (simplified) {
-      const algorithm = new DebtSimplificationAlgorithm();
-      const simplifiedDebts = algorithm.simplifyDebts(
-        debtsToReturn.map((d) => ({
-          debtor: d.debtor,
-          creditor: d.creditor,
-          amount: d.amount,
-        })),
-      );
-
-      debtsToReturn = simplifiedDebts.map((d) => ({
-        debtor: d.debtor,
-        creditor: d.creditor,
-        amount: d.amount,
-        currency: workspace.defaultCurrency,
-      }));
-    }
-
-    return debtsToReturn;
-  }
-
-  async getFriendsBalances(userId: string) {
-    // 1. Get all workspaces user is a member of
-    const workspaces = await this.workspacesService.listWorkspaces(userId);
-    if (workspaces.length === 0) return [];
-
-    const workspaceIds = workspaces.map((w) => w.id);
-    const workspaceCurrencyMap = new Map(workspaces.map((w) => [w.id, w.defaultCurrency]));
-
-    // 2. Get all raw debts for these workspaces
-    const rawDebts = await this.repository.getExpenseDebtsByWorkspaces(workspaceIds);
-
-    // 3. Group raw debts by currency
-    const debtsByCurrency = new Map<string, any[]>();
-    for (const debt of rawDebts) {
-      const currency = workspaceCurrencyMap.get(debt.workspaceId) || 'USD';
-      if (!debtsByCurrency.has(currency)) debtsByCurrency.set(currency, []);
-      debtsByCurrency.get(currency)!.push(debt);
-    }
-
-    // 4. Simplify debts globally per currency and extract those involving the user
-    const friendBalancesMap = new Map<
-      string,
-      {
-        userId: string;
-        name: string;
-        avatarUrl: string | null;
-        netBalance: number;
-        currency: string;
-      }
-    >();
-
-    const algorithm = new DebtSimplificationAlgorithm();
-
-    // We need user details for friends
-    // To minimize DB calls, we can fetch users as we process, or collect all unique user IDs first
-    const uniqueUserIds = new Set<string>();
-    rawDebts.forEach((d) => {
-      uniqueUserIds.add(d.debtor);
-      uniqueUserIds.add(d.creditor);
+    const byCurrency = [...groupBy(nets, (n) => n.currency)].map(([currency, rows]) => {
+      const mine = userId
+        ? rows.filter((r) => r.userId === userId).reduce((sum, r) => sum + r.net.minor, 0)
+        : 0;
+      const owed = rows.filter((r) => r.net.minor > 0).reduce((sum, r) => sum + r.net.minor, 0);
+      return {
+        currency,
+        total: owed / 100,
+        owedToYou: Math.max(mine, 0) / 100,
+        youOwe: Math.max(-mine, 0) / 100,
+        perMember: workspaceId ? rows.map((r) => ({ userId: r.userId, net: r.net.toMajor() })) : [],
+      };
     });
+    return { byCurrency };
+  }
 
-    // Pre-fetch all user details
-    const usersList = await this.usersService.findAll();
-    const userMap = new Map(usersList.map((u) => [u.id, u]));
+  async getDebts(workspaceId: string, simplified = true) {
+    const nets = await this.repository.getNetBalances(workspaceId);
+    const currencies = [...new Set(nets.map((n) => n.currency))];
 
-    for (const [currency, debts] of debtsByCurrency.entries()) {
-      const simplified = algorithm.simplifyDebts(
-        debts.map((d) => ({
-          debtor: d.debtor,
-          creditor: d.creditor,
-          amount: d.amount,
-        })),
-      );
-
-      for (const debt of simplified) {
-        if (debt.debtor === userId || debt.creditor === userId) {
-          const isDebtor = debt.debtor === userId;
-          const friendId = isDebtor ? debt.creditor : debt.debtor;
-          const amount = isDebtor ? -debt.amount : debt.amount; // Negative if user owes friend, positive if friend owes user
-
-          const key = `${friendId}-${currency}`;
-          if (!friendBalancesMap.has(key)) {
-            const friendData = userMap.get(friendId);
-            friendBalancesMap.set(key, {
-              userId: friendId,
-              name: friendData?.name || 'Unknown',
-              avatarUrl: friendData?.avatarUrl || null,
-              netBalance: 0,
-              currency,
-            });
-          }
-
-          friendBalancesMap.get(key)!.netBalance += amount;
+    const perCurrency = await Promise.all(
+      currencies.map(async (currency) => {
+        if (simplified) {
+          const balances = nets
+            .filter((n) => n.currency === currency)
+            .map((n) => ({ id: n.userId, minor: n.net.minor }));
+          return this.algorithm.settleUp(balances).map((d) => toMajorDebt(d, currency));
         }
+        const [splits, settlements] = await Promise.all([
+          this.repository.getSplitRecords(workspaceId, currency),
+          this.repository.getSettlementRecords(workspaceId, currency),
+        ]);
+        return pairwiseDebts(currency, splits, settlements).map((d) => toMajorDebt(d, currency));
+      }),
+    );
+    return perCurrency.flat();
+  }
+
+  async hasOutstandingBalance(workspaceId: string, userId: string) {
+    const nets = await this.repository.getNetBalances(workspaceId);
+    return nets.some((n) => n.userId === userId && !n.net.isZero());
+  }
+
+  /** Net amount per friend (and currency) summed over every workspace you share with them. */
+  async getFriendsBalances(userId: string) {
+    const nets = await this.repository.getNetBalancesForMember(userId);
+
+    const friends = new Map<string, { userId: string; currency: string; netBalance: number }>();
+    for (const [, rows] of groupBy(nets, (n) => `${n.workspaceId}|${n.currency}`)) {
+      const settleUp = this.algorithm.settleUp(
+        rows.map((r) => ({ id: r.userId, minor: r.net.minor })),
+      );
+      const currency = rows[0].currency;
+      for (const debt of settleUp) {
+        if (debt.debtor !== userId && debt.creditor !== userId) continue;
+        const friendId = debt.debtor === userId ? debt.creditor : debt.debtor;
+        const signed = debt.debtor === userId ? -debt.minor : debt.minor;
+        const key = `${friendId}|${currency}`;
+        const entry = friends.get(key) ?? { userId: friendId, currency, netBalance: 0 };
+        entry.netBalance += signed;
+        friends.set(key, entry);
       }
     }
 
-    return Array.from(friendBalancesMap.values());
+    const profiles = new Map(
+      (
+        await this.usersService.findByIds([...new Set([...friends.values()].map((f) => f.userId))])
+      ).map((u) => [u.id, u]),
+    );
+    return [...friends.values()].map((f) => ({
+      userId: f.userId,
+      name: profiles.get(f.userId)?.name ?? 'Unknown',
+      avatarUrl: profiles.get(f.userId)?.avatarUrl ?? null,
+      netBalance: f.netBalance / 100,
+      currency: f.currency,
+    }));
   }
 }

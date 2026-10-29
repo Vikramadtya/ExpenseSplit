@@ -4,65 +4,59 @@ export interface Debt {
   amount: number;
 }
 
+/** A person's net position in minor units: positive = is owed, negative = owes. */
+export interface MinorBalance {
+  id: string;
+  minor: number;
+}
+
+export interface MinorDebt {
+  debtor: string;
+  creditor: string;
+  minor: number;
+}
+
 export class DebtSimplificationAlgorithm {
   /**
-   * Simplifies a list of debts by calculating net balances and settling them greedily.
-   * This is a graph algorithm that minimizes the total number of transactions.
+   * Minimises the number of payments needed to settle everyone, greedily matching the
+   * largest debtor with the largest creditor. Works on integer minor units, so it is exact.
    */
-  public simplifyDebts(debts: Debt[]): Debt[] {
-    if (debts.length === 0) return [];
+  public settleUp(balances: MinorBalance[]): MinorDebt[] {
+    const debtors = balances
+      .filter((b) => b.minor < 0)
+      .map((b) => ({ id: b.id, minor: -b.minor }))
+      .sort((a, b) => b.minor - a.minor);
+    const creditors = balances
+      .filter((b) => b.minor > 0)
+      .map((b) => ({ id: b.id, minor: b.minor }))
+      .sort((a, b) => b.minor - a.minor);
 
-    // 1. Calculate net balances for each person
-    const balances = new Map<string, number>();
-
-    for (const debt of debts) {
-      balances.set(debt.debtor, (balances.get(debt.debtor) || 0) - debt.amount);
-      balances.set(debt.creditor, (balances.get(debt.creditor) || 0) + debt.amount);
-    }
-
-    // 2. Separate into debtors (negative balance) and creditors (positive balance)
-    const debtors: { id: string; amount: number }[] = [];
-    const creditors: { id: string; amount: number }[] = [];
-
-    for (const [id, amount] of balances.entries()) {
-      // Use a small epsilon to avoid floating point precision issues
-      if (amount < -0.001) debtors.push({ id, amount: Math.abs(amount) });
-      else if (amount > 0.001) creditors.push({ id, amount });
-    }
-
-    // Sort to optimize matching (largest debtor with largest creditor)
-    debtors.sort((a, b) => b.amount - a.amount);
-    creditors.sort((a, b) => b.amount - a.amount);
-
-    const simplifiedDebts: Debt[] = [];
-    let i = 0; // index for debtors
-    let j = 0; // index for creditors
-
-    // 3. Greedily match debtors to creditors
+    const payments: MinorDebt[] = [];
+    let i = 0;
+    let j = 0;
     while (i < debtors.length && j < creditors.length) {
-      const debtor = debtors[i];
-      const creditor = creditors[j];
-
-      // The settlement amount is the minimum of what is owed and what is due
-      const settlementAmount = Math.min(debtor.amount, creditor.amount);
-
-      simplifiedDebts.push({
-        debtor: debtor.id,
-        creditor: creditor.id,
-        // Round to 2 decimal places to keep currency clean
-        amount: Math.round(settlementAmount * 100) / 100,
-      });
-
-      // Deduct the settled amount
-      debtor.amount -= settlementAmount;
-      creditor.amount -= settlementAmount;
-
-      // If the debtor is fully settled, move to the next
-      if (Math.abs(debtor.amount) < 0.001) i++;
-      // If the creditor is fully settled, move to the next
-      if (Math.abs(creditor.amount) < 0.001) j++;
+      const minor = Math.min(debtors[i].minor, creditors[j].minor);
+      payments.push({ debtor: debtors[i].id, creditor: creditors[j].id, minor });
+      debtors[i].minor -= minor;
+      creditors[j].minor -= minor;
+      if (debtors[i].minor === 0) i++;
+      if (creditors[j].minor === 0) j++;
     }
+    return payments;
+  }
 
-    return simplifiedDebts;
+  /** Convenience for decimal debts: nets them out, then settles up. */
+  public simplifyDebts(debts: Debt[]): Debt[] {
+    const nets = new Map<string, number>();
+    for (const d of debts) {
+      const minor = Math.round(d.amount * 100);
+      nets.set(d.debtor, (nets.get(d.debtor) ?? 0) - minor);
+      nets.set(d.creditor, (nets.get(d.creditor) ?? 0) + minor);
+    }
+    return this.settleUp([...nets].map(([id, minor]) => ({ id, minor }))).map((p) => ({
+      debtor: p.debtor,
+      creditor: p.creditor,
+      amount: p.minor / 100,
+    }));
   }
 }

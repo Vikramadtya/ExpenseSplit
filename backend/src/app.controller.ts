@@ -1,8 +1,10 @@
 import { Controller, Get, Inject } from '@nestjs/common';
+import { Public } from './auth/decorators';
 import { DRIZZLE_CLIENT } from './database/database.module';
 import type { DrizzleDb } from './database/database.module';
 import { sql } from 'drizzle-orm';
 
+@Public()
 @Controller('api/v1')
 export class AppController {
   constructor(@Inject(DRIZZLE_CLIENT) private readonly db: DrizzleDb) {}

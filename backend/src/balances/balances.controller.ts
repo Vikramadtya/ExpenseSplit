@@ -1,15 +1,13 @@
-import { Controller, Get, Param, Query, UseGuards, Req } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Controller, Get, Param, Query, Req } from '@nestjs/common';
 import { BalancesService } from './balances.service';
 
 @Controller('api/v1')
-@UseGuards(JwtAuthGuard)
 export class BalancesController {
   constructor(private readonly balancesService: BalancesService) {}
 
   @Get('workspaces/:workspaceId/balances')
-  getBalances(@Param('workspaceId') workspaceId: string) {
-    return this.balancesService.getBalances(workspaceId);
+  getBalances(@Param('workspaceId') workspaceId: string, @Req() req: any) {
+    return this.balancesService.getBalances(workspaceId, req.user.id);
   }
 
   @Get('balances')

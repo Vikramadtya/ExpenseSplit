@@ -1,36 +1,30 @@
-import { SplitStrategy, SplitResult } from './split.strategy';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { Money } from '../../common/money/money';
+import { OwedAmount, SplitInput, SplitStrategy } from './split.strategy';
 
+@Injectable()
 export class ExactSplitStrategy implements SplitStrategy {
-  calculateSplits(
-    totalAmount: number,
-    participants: string[],
-    options?: import('./split.strategy').SplitStrategyOptions,
-  ): SplitResult[] {
-    const exactAmounts = options?.exactAmounts;
-    if (!exactAmounts || exactAmounts.length === 0) {
-      throw new BadRequestException('Exact amounts must be provided for an exact split.');
+  readonly type = 'EXACT' as const;
+
+  allocate(total: Money, { exactAmounts }: SplitInput): OwedAmount[] {
+    if (!exactAmounts?.length) throw new BadRequestException('Exact amounts must be provided');
+    if (new Set(exactAmounts.map((e) => e.userId)).size !== exactAmounts.length) {
+      throw new BadRequestException('Duplicate participants');
     }
 
-    // Verify all participants have a specified amount
-    const providedUserIds = new Set(exactAmounts.map((ea) => ea.userId));
-    for (const p of participants) {
-      if (!providedUserIds.has(p)) {
-        throw new BadRequestException(`Participant ${p} is missing an exact amount specification.`);
-      }
+    const owed = exactAmounts.map((e) => ({
+      userId: e.userId,
+      owed: Money.fromMajor(e.amount, total.currency),
+    }));
+    if (owed.some((o) => o.owed.minor < 0)) {
+      throw new BadRequestException('Exact amounts must not be negative');
     }
-
-    const sum = exactAmounts.reduce((acc, curr) => acc + curr.amount, 0);
-    // Use an epsilon for floating point comparison
-    if (Math.abs(sum - totalAmount) > 0.01) {
+    const sum = owed.reduce((acc, o) => acc.add(o.owed), Money.zero(total.currency));
+    if (!sum.equals(total)) {
       throw new BadRequestException(
-        `Exact amounts sum (${sum}) does not equal total amount (${totalAmount}).`,
+        `Exact amounts sum to ${sum.toDecimal()}, expected ${total.toDecimal()}`,
       );
     }
-
-    return exactAmounts.map((ea) => ({
-      userId: ea.userId,
-      amountOwed: Math.round(ea.amount * 100) / 100,
-    }));
+    return owed;
   }
 }

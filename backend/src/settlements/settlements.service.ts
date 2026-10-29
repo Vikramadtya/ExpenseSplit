@@ -1,7 +1,14 @@
-import { Injectable, Inject, forwardRef, BadRequestException } from '@nestjs/common';
+import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { CreateSettlementDto } from './dto/create-settlement.dto';
-import { ISettlementsRepositoryToken } from '../common/interfaces/repository.interfaces';
-import type { ISettlementsRepository } from '../common/interfaces/repository.interfaces';
+import {
+  ISettlementsRepositoryToken,
+  IWorkspacesRepositoryToken,
+} from '../common/interfaces/repository.interfaces';
+import type {
+  ISettlementsRepository,
+  IWorkspacesRepository,
+} from '../common/interfaces/repository.interfaces';
+import { Money } from '../common/money/money';
 import { BalancesService } from '../balances/balances.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 
@@ -10,9 +17,9 @@ export class SettlementsService {
   constructor(
     @Inject(ISettlementsRepositoryToken)
     private readonly repository: ISettlementsRepository,
-    @Inject(forwardRef(() => BalancesService))
+    @Inject(IWorkspacesRepositoryToken)
+    private readonly workspacesRepository: IWorkspacesRepository,
     private readonly balancesService: BalancesService,
-    @Inject(forwardRef(() => WorkspacesService))
     private readonly workspacesService: WorkspacesService,
   ) {}
 
@@ -21,55 +28,69 @@ export class SettlementsService {
   }
 
   async recordSettlement(workspaceId: string, dto: CreateSettlementDto) {
-    return this.repository.create(workspaceId, dto);
+    if (dto.payerId === dto.payeeId) {
+      throw new BadRequestException('Payer and payee must be different people');
+    }
+    if (!(await this.workspacesRepository.allAreMembers(workspaceId, [dto.payerId, dto.payeeId]))) {
+      throw new BadRequestException('Payer and payee must be members of the workspace');
+    }
+
+    const currency =
+      dto.currency ?? (await this.workspacesService.getWorkspace(workspaceId)).defaultCurrency;
+    return this.repository.create(workspaceId, {
+      payerId: dto.payerId,
+      payeeId: dto.payeeId,
+      amount: Money.fromMajor(dto.amount, currency).toDecimal(),
+      currency,
+      date: new Date(dto.date),
+    });
   }
 
+  /** Pays a friend across every workspace you share, clearing what you owe them first. */
   async recordGlobalSettlement(payerId: string, payeeId: string, amount: number, currency: string) {
-    // Distribute settlement across shared workspaces
-    const workspaces = await this.workspacesService.listWorkspaces(payerId);
-    const workspaceIds = workspaces.filter((w) => w.defaultCurrency === currency).map((w) => w.id);
-
-    if (workspaceIds.length === 0) {
-      throw new BadRequestException('No shared workspaces with this currency');
+    if (payerId === payeeId) {
+      throw new BadRequestException('You cannot settle with yourself');
+    }
+    const [mine, theirs] = await Promise.all([
+      this.workspacesService.listWorkspaces(payerId),
+      this.workspacesService.listWorkspaces(payeeId),
+    ]);
+    const theirIds = new Set(theirs.map((w) => w.id));
+    const shared = mine.filter((w) => theirIds.has(w.id));
+    if (shared.length === 0) {
+      throw new BadRequestException('You do not share a workspace with this person');
     }
 
-    let remainingToSettle = amount;
-    const settlementsCreated = [];
-
-    // For each workspace, check how much payer owes payee
-    for (const wid of workspaceIds) {
-      if (remainingToSettle <= 0) break;
-
-      const debts = await this.balancesService.getDebts(wid, true);
-      // Find debt where user owes the friend
-      const debt = debts.find((d) => d.debtor === payerId && d.creditor === payeeId);
-
-      if (debt && debt.amount > 0) {
-        const settleAmount = Math.min(debt.amount, remainingToSettle);
-
-        const settlement = await this.repository.create(wid, {
+    let remaining = Money.fromMajor(amount, currency);
+    const created: unknown[] = [];
+    const record = async (workspaceId: string, value: Money) => {
+      created.push(
+        await this.repository.create(workspaceId, {
           payerId,
           payeeId,
-          amount: settleAmount,
-          date: new Date().toISOString(),
-        });
+          amount: value.toDecimal(),
+          currency: value.currency,
+          date: new Date(),
+        }),
+      );
+    };
 
-        settlementsCreated.push(settlement);
-        remainingToSettle -= settleAmount;
-      }
+    for (const workspace of shared) {
+      if (remaining.minor <= 0) break;
+      const debts = await this.balancesService.getDebts(workspace.id, true);
+      const debt = debts.find(
+        (d) => d.debtor === payerId && d.creditor === payeeId && d.currency === currency,
+      );
+      if (!debt) continue;
+
+      const pay = Money.fromMajor(debt.amount, currency);
+      const part = pay.minor < remaining.minor ? pay : remaining;
+      await record(workspace.id, part);
+      remaining = remaining.subtract(part);
     }
 
-    // If still remaining, just dump it in the first workspace they share (overpayment)
-    if (remainingToSettle > 0 && workspaceIds.length > 0) {
-      const settlement = await this.repository.create(workspaceIds[0], {
-        payerId,
-        payeeId,
-        amount: remainingToSettle,
-        date: new Date().toISOString(),
-      });
-      settlementsCreated.push(settlement);
-    }
-
-    return settlementsCreated;
+    // Anything left over is an overpayment, recorded in the first shared workspace.
+    if (remaining.minor > 0) await record(shared[0].id, remaining);
+    return created;
   }
 }

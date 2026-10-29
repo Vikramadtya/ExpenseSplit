@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { IUsersRepositoryToken } from '../common/interfaces/repository.interfaces';
 import type { IUsersRepository } from '../common/interfaces/repository.interfaces';
 
@@ -42,7 +42,15 @@ export class UsersService {
     });
   }
 
-  async findAll() {
-    return this.usersRepository.findAll();
+  async findByIds(ids: string[]) {
+    return this.usersRepository.findByIds(ids);
+  }
+
+  /** A profile is visible to its owner and to people who share a workspace with them. */
+  async findVisibleTo(requesterId: string, id: string) {
+    if (!(await this.usersRepository.sharesWorkspace(requesterId, id))) {
+      throw new NotFoundException('User not found');
+    }
+    return this.usersRepository.findById(id);
   }
 }

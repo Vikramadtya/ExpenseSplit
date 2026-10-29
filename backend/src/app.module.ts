@@ -1,4 +1,6 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { APP_GUARD, APP_PIPE } from '@nestjs/core';
+import { ZodValidationPipe } from 'nestjs-zod';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { ConfigModule } from '@nestjs/config';
@@ -12,11 +14,15 @@ import { ExpensesModule } from './expenses/expenses.module';
 import { BalancesModule } from './balances/balances.module';
 import { SettlementsModule } from './settlements/settlements.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { WorkspaceMemberGuard } from './auth/guards/workspace-member.guard';
+import { MetricsController } from './common/metrics.controller';
 
 @Module({
   imports: [
     PrometheusModule.register({
       path: '/metrics',
+      controller: MetricsController,
       defaultMetrics: {
         enabled: true,
       },
@@ -32,7 +38,14 @@ import { AnalyticsModule } from './analytics/analytics.module';
     AnalyticsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // Secure by default: authenticate every route, then check workspace membership.
+    // Order matters: the JWT guard must populate request.user first.
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: WorkspaceMemberGuard },
+    { provide: APP_PIPE, useClass: ZodValidationPipe },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

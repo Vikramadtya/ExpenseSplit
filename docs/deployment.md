@@ -18,7 +18,7 @@ This document outlines the steps to deploy the ExpenseSplit stack:
 3. Configure the service:
    - **Root Directory**: `backend`
    - **Environment**: `Node`
-   - **Build Command**: `npm install && npm run build && npm run db:push` (This ensures Drizzle pushes your schema to Neon during deployment).
+   - **Build Command**: `npm install && npm run build && npm run db:migrate` (applies the reviewed SQL migrations in `backend/drizzle` to Neon; never use `db:push` against production).
    - **Start Command**: `npm run start:prod`
 4. **Required Environment Variables (CRITICAL)**:
    - `DATABASE_URL`: Your Neon connection string.
@@ -47,3 +47,29 @@ This document outlines the steps to deploy the ExpenseSplit stack:
 ## 4. Post-Deployment Checks
 - Verify that Google Login successfully redirects back to the Vercel app.
 - Check the Render logs to ensure the database schema was pushed successfully (`npm run db:push`).
+
+
+## Database migrations
+
+Schema changes go through reviewed SQL migrations:
+
+1. Edit `backend/src/database/schema.ts`.
+2. `cd backend && npm run db:generate -- --name <what_changed>`, then review the SQL in `backend/drizzle/`.
+3. `npm run db:migrate` applies it. CI runs the migrations against a clean Postgres before the integration tests.
+
+### One-time step for databases created with `db:push`
+
+`0000_baseline.sql` recreates the schema as it stood before migrations were adopted. A database that
+already has those tables must be told the baseline is applied, otherwise `db:migrate` fails with
+"relation already exists". Run once against that database, then use `db:migrate` as normal:
+
+```sql
+CREATE SCHEMA IF NOT EXISTS drizzle;
+CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint);
+```
+
+and insert the baseline's hash/timestamp (the hash is the SHA-256 of `0000_baseline.sql`; the timestamp is the
+`when` of entry 0 in `backend/drizzle/meta/_journal.json`).
+
+`0001_phase0_money_indexes.sql` removes duplicate `expense_splits` / `workspace_members` rows (keeping one per pair) before
+adding unique indexes. Take a Neon branch or backup before applying it to production.

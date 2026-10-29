@@ -1,106 +1,82 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { DRIZZLE_CLIENT } from './../database/database.module';
-import type { DrizzleDb } from '../database/database.module';
 import { sql } from 'drizzle-orm';
+import { DRIZZLE_CLIENT } from '../database/database.module';
+import type { DrizzleDb } from '../database/database.module';
+import { Money } from '../common/money/money';
+import type {
+  IBalancesRepository,
+  MemberNetBalance,
+  NetBalance,
+  SettlementRecord,
+  SplitRecord,
+} from '../common/interfaces/repository.interfaces';
+
+/**
+ * Net position per member and currency:
+ *   expenses:    amount_paid - amount_owed
+ *   settlements: +amount for the payer (their debt shrank), -amount for the payee.
+ */
+const netByMember = (scope: ReturnType<typeof sql>) => sql`
+  SELECT workspace_id, user_id, currency, SUM(net) AS net FROM (
+    SELECT s.workspace_id, s.user_id, e.currency, s.amount_paid - s.amount_owed AS net
+      FROM expense_splits s JOIN expenses e ON e.id = s.expense_id
+     WHERE s.workspace_id ${scope}
+    UNION ALL
+    SELECT workspace_id, payer_id, currency, amount FROM settlements WHERE workspace_id ${scope}
+    UNION ALL
+    SELECT workspace_id, payee_id, currency, -amount FROM settlements WHERE workspace_id ${scope}
+  ) t
+  GROUP BY workspace_id, user_id, currency
+  HAVING SUM(net) <> 0
+`;
 
 @Injectable()
-export class BalancesRepository {
+export class BalancesRepository implements IBalancesRepository {
   constructor(@Inject(DRIZZLE_CLIENT) private readonly db: DrizzleDb) {}
 
-  async getExpenseDebts(
-    workspaceId: string,
-  ): Promise<Array<{ debtor: string; creditor: string; amount: number }>> {
-    // For each expense_split row: debtor = split.userId, creditor = expense.createdById
-    // Net owed = amount_owed - amount_paid
-    const result = await this.db.execute(sql`
-      SELECT
-        s.user_id AS debtor,
-        e.created_by_id AS creditor,
-        SUM(s.amount_owed - s.amount_paid) AS amount
-      FROM expense_splits s
-      JOIN expenses e ON s.expense_id = e.id
-      WHERE s.workspace_id = ${workspaceId}
-        AND s.user_id != e.created_by_id
-      GROUP BY s.user_id, e.created_by_id
-      HAVING SUM(s.amount_owed - s.amount_paid) > 0
-    `);
+  async getNetBalances(workspaceId: string): Promise<NetBalance[]> {
+    const rows = await this.db.execute(netByMember(sql`= ${workspaceId}`));
+    return rows.map((r) => this.toNet(r));
+  }
 
-    return result.map((row) => ({
-      debtor: row.debtor as string,
-      creditor: row.creditor as string,
-      amount: Number(row.amount),
+  async getNetBalancesForMember(userId: string): Promise<MemberNetBalance[]> {
+    const mine = sql`IN (SELECT workspace_id FROM workspace_members WHERE user_id = ${userId})`;
+    const rows = await this.db.execute(netByMember(mine));
+    return rows.map((r) => ({ ...this.toNet(r), workspaceId: r.workspace_id as string }));
+  }
+
+  async getSplitRecords(workspaceId: string, currency: string): Promise<SplitRecord[]> {
+    const rows = await this.db.execute(sql`
+      SELECT s.expense_id, s.user_id, s.amount_owed, s.amount_paid
+        FROM expense_splits s JOIN expenses e ON e.id = s.expense_id
+       WHERE s.workspace_id = ${workspaceId} AND e.currency = ${currency}
+    `);
+    return rows.map((r) => ({
+      expenseId: r.expense_id as string,
+      userId: r.user_id as string,
+      owed: Money.fromMajor(r.amount_owed as string, currency),
+      paid: Money.fromMajor(r.amount_paid as string, currency),
     }));
   }
 
-  async getNetBalances(workspaceId: string): Promise<Array<{ userId: string; net: number }>> {
-    // A net balance for a user is:
-    // (Amount paid across all splits) - (Amount owed across all splits) + (Settlements received) - (Settlements paid)
-    // Actually, simpler:
-    // Expenses net: SUM(amount_paid) - SUM(amount_owed) for the user in expense_splits
-    // Settlements net: SUM(amount) where payee = user - SUM(amount) where payer = user
-
-    const result = await this.db.execute(sql`
-      WITH expense_net AS (
-        SELECT user_id, SUM(amount_paid - amount_owed) AS net
-        FROM expense_splits
-        WHERE workspace_id = ${workspaceId}
-        GROUP BY user_id
-      ),
-      settlement_received AS (
-        SELECT payee_id AS user_id, SUM(amount) AS net
-        FROM settlements
-        WHERE workspace_id = ${workspaceId}
-        GROUP BY payee_id
-      ),
-      settlement_paid AS (
-        SELECT payer_id AS user_id, SUM(amount) AS net
-        FROM settlements
-        WHERE workspace_id = ${workspaceId}
-        GROUP BY payer_id
-      )
-      SELECT 
-        COALESCE(e.user_id, sr.user_id, sp.user_id) AS "userId",
-        COALESCE(e.net, 0) + COALESCE(sr.net, 0) - COALESCE(sp.net, 0) AS net
-      FROM expense_net e
-      FULL OUTER JOIN settlement_received sr ON e.user_id = sr.user_id
-      FULL OUTER JOIN settlement_paid sp ON e.user_id = sp.user_id
+  async getSettlementRecords(workspaceId: string, currency: string): Promise<SettlementRecord[]> {
+    const rows = await this.db.execute(sql`
+      SELECT payer_id, payee_id, amount FROM settlements
+       WHERE workspace_id = ${workspaceId} AND currency = ${currency}
     `);
-
-    return result.map((row) => ({
-      userId: row.userId as string,
-      net: Number(row.net),
+    return rows.map((r) => ({
+      payerId: r.payer_id as string,
+      payeeId: r.payee_id as string,
+      amount: Money.fromMajor(r.amount as string, currency),
     }));
   }
 
-  async getExpenseDebtsByWorkspaces(
-    workspaceIds: string[],
-  ): Promise<Array<{ workspaceId: string; debtor: string; creditor: string; amount: number }>> {
-    if (workspaceIds.length === 0) return [];
-
-    // Convert array to a list of quoted strings for the IN clause
-    const ids = workspaceIds.map((id) => `'${id}'`).join(',');
-
-    const result = await this.db.execute(
-      sql.raw(`
-      SELECT
-        s.workspace_id AS "workspaceId",
-        s.user_id AS debtor,
-        e.created_by_id AS creditor,
-        SUM(s.amount_owed - s.amount_paid) AS amount
-      FROM expense_splits s
-      JOIN expenses e ON s.expense_id = e.id
-      WHERE s.workspace_id IN (${ids})
-        AND s.user_id != e.created_by_id
-      GROUP BY s.workspace_id, s.user_id, e.created_by_id
-      HAVING SUM(s.amount_owed - s.amount_paid) > 0
-    `),
-    );
-
-    return result.map((row) => ({
-      workspaceId: row.workspaceId as string,
-      debtor: row.debtor as string,
-      creditor: row.creditor as string,
-      amount: Number(row.amount),
-    }));
+  private toNet(row: Record<string, unknown>): NetBalance {
+    const currency = row.currency as string;
+    return {
+      userId: row.user_id as string,
+      currency,
+      net: Money.fromMajor(row.net as string, currency),
+    };
   }
 }

@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { BalancesModule } from '../balances/balances.module';
 import { WorkspacesController } from './workspaces.controller';
 import { WorkspacesService } from './workspaces.service';
@@ -8,7 +8,7 @@ import { UsersModule } from '../users/users.module';
 import { IWorkspacesRepositoryToken } from '../common/interfaces/repository.interfaces';
 
 @Module({
-  imports: [DatabaseModule, UsersModule, forwardRef(() => BalancesModule)],
+  imports: [DatabaseModule, UsersModule, BalancesModule],
   controllers: [WorkspacesController],
   providers: [
     WorkspacesService,

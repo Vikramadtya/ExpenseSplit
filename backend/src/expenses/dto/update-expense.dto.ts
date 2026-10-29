@@ -1,15 +1,28 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { createExpenseSchema } from './create-expense.dto';
 
+// Defaults are dropped so an omitted field means "leave unchanged".
 const updateExpenseSchema = z.object({
-  description: z.string().min(1).optional(),
-  amount: z.number().positive().optional(),
-  date: z.string().optional(),
-  splitType: z.enum(['EQUAL', 'EXACT', 'PERCENTAGE']).optional(),
-  currency: z.string().optional(),
+  description: createExpenseSchema.shape.description.optional(),
+  amount: createExpenseSchema.shape.amount.optional(),
+  date: createExpenseSchema.shape.date.optional(),
+  splitType: z.enum(['EQUAL', 'EXACT', 'PERCENTAGE', 'SHARES']).optional(),
+  currency: z
+    .string()
+    .regex(/^[A-Za-z]{3}$/)
+    .transform((c) => c.toUpperCase())
+    .optional(),
+  tags: createExpenseSchema.shape.tags,
+  payers: createExpenseSchema.shape.payers.optional(),
+  /** Shorthand for a single payer covering the whole amount. Ignored when `payers` is given. */
   paidBy: z.string().uuid().optional(),
-  participants: z.array(z.string().uuid()).min(1).optional(),
-  exactAmounts: z.array(z.object({ userId: z.string().uuid(), amount: z.number() })).optional(),
+  participants: createExpenseSchema.shape.participants,
+  exactAmounts: createExpenseSchema.shape.exactAmounts,
+  percentages: createExpenseSchema.shape.percentages,
+  shares: createExpenseSchema.shape.shares,
+  /** Optimistic locking: the update fails with 409 if the expense changed since this version. */
+  expectedVersion: z.number().int().positive().optional(),
 });
 
 export class UpdateExpenseDto extends createZodDto(updateExpenseSchema) {}

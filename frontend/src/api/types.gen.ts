@@ -34,12 +34,16 @@ export type Expense = {
   description: string;
   amount: number;
   date: string;
-  splitType: 'EQUAL' | 'EXACT' | 'PERCENTAGE';
+  splitType: 'EQUAL' | 'EXACT' | 'PERCENTAGE' | 'SHARES';
   paidBy: string;
   createdAt: string;
   splits?: Array<ExpenseSplit>;
   category: string;
   currency: string;
+  /**
+   * Increments on every edit; send back as expectedVersion to detect conflicts
+   */
+  version?: number;
   type?: 'EXPENSE' | 'TRANSFER';
   tags?: Array<string>;
   recurringInterval?: 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY';
@@ -123,7 +127,7 @@ export type CreateExpenseDto = {
   description: string;
   amount: number;
   date: string;
-  splitType: 'EQUAL' | 'EXACT' | 'PERCENTAGE';
+  splitType: 'EQUAL' | 'EXACT' | 'PERCENTAGE' | 'SHARES';
   groupId: string;
   category?: string;
   currency?: string;
@@ -363,14 +367,24 @@ export type ListWorkspaceExpensesData = {
     currency?: string;
     category?: string;
     sortBy?: string;
+    /**
+     * Comma-separated; matches expenses having any of the tags
+     */
     tags?: string;
+    from?: string;
+    to?: string;
+    /**
+     * Value of the `x-next-cursor` header from the previous page
+     */
+    cursor?: string;
+    limit?: number;
   };
   url: '/workspaces/{workspaceId}/expenses';
 };
 
 export type ListWorkspaceExpensesResponses = {
   /**
-   * List of expenses
+   * One page of expenses, newest first
    */
   200: Array<Expense>;
 };
@@ -383,7 +397,7 @@ export type CreateExpenseData = {
     description: string;
     amount: number;
     date: string;
-    splitType: 'EQUAL' | 'EXACT' | 'PERCENTAGE';
+    splitType: 'EQUAL' | 'EXACT' | 'PERCENTAGE' | 'SHARES';
     payers?: Array<{
       userId: string;
       amount: number;
@@ -400,6 +414,10 @@ export type CreateExpenseData = {
     percentages?: Array<{
       userId: string;
       percentage: number;
+    }>;
+    shares?: Array<{
+      userId: string;
+      shares: number;
     }>;
     currency: string;
   };
@@ -460,10 +478,19 @@ export type UpdateExpenseData = {
     description?: string;
     amount?: number;
     date?: string;
-    splitType?: 'EQUAL' | 'EXACT' | 'PERCENTAGE';
+    splitType?: 'EQUAL' | 'EXACT' | 'PERCENTAGE' | 'SHARES';
     payers?: Array<{
       userId: string;
       amount: number;
+    }>;
+    /**
+     * Fails with 409 if the expense has changed since this version
+     */
+    expectedVersion?: number;
+    paidBy?: string;
+    shares?: Array<{
+      userId: string;
+      shares: number;
     }>;
     participants?: Array<string>;
     tags?: Array<string>;
@@ -557,6 +584,10 @@ export type CreateSettlementData = {
     payerId: string;
     payeeId: string;
     amount: number;
+    /**
+     * Defaults to the workspace currency
+     */
+    currency?: string;
     date: string;
   };
   path: {
