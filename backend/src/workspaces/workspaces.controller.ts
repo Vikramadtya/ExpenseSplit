@@ -1,8 +1,20 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Patch, Delete, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Patch,
+  Delete,
+  Req,
+} from '@nestjs/common';
 import { WorkspacesService } from './workspaces.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
+import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { Roles } from '../auth/decorators';
 
 interface RequestWithUser extends Request {
@@ -67,9 +79,40 @@ export class WorkspacesController {
   }
 
   @Delete('workspaces/:workspaceId/members/:userId')
-  @Roles('ADMIN')
   @HttpCode(204)
-  async removeMember(@Param('workspaceId') workspaceId: string, @Param('userId') userId: string) {
+  async removeMember(
+    @Param('workspaceId') workspaceId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Req() request: RequestWithUser,
+  ) {
+    // Removing yourself follows the same rules as leaving.
+    if (userId === request.user.id) return this.workspacesService.leave(workspaceId, userId);
     return this.workspacesService.removeMember(workspaceId, userId);
+  }
+
+  @Patch('workspaces/:workspaceId/members/:userId')
+  @Roles('ADMIN')
+  async setMemberRole(
+    @Param('workspaceId') workspaceId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Body() body: UpdateMemberRoleDto,
+  ) {
+    return this.workspacesService.setMemberRole(workspaceId, userId, body.role);
+  }
+
+  @Post('workspaces/:workspaceId/leave')
+  @HttpCode(204)
+  async leave(@Param('workspaceId') workspaceId: string, @Req() request: RequestWithUser) {
+    return this.workspacesService.leave(workspaceId, request.user.id);
+  }
+
+  /** Finds or creates the private ledger between you and someone you share a workspace with. */
+  @Post('friends/:userId/workspace')
+  @HttpCode(200)
+  async directWorkspace(
+    @Param('userId', ParseUUIDPipe) friendId: string,
+    @Req() request: RequestWithUser,
+  ) {
+    return this.workspacesService.getOrCreateDirect(request.user.id, friendId);
   }
 }

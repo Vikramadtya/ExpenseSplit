@@ -25,7 +25,24 @@ export type Workspace = {
   id: string;
   name: string;
   defaultCurrency: string;
+  /**
+   * DIRECT is the private ledger between two friends
+   */
+  type?: 'GROUP' | 'DIRECT';
   createdAt: string;
+};
+
+export type Comment = {
+  id: string;
+  expenseId: string;
+  userId: string;
+  body: string;
+  createdAt: string;
+  user?: {
+    id?: string;
+    name?: string;
+    avatarUrl?: string | null;
+  };
 };
 
 export type Expense = {
@@ -522,6 +539,201 @@ export type UpdateExpenseResponses = {
 };
 
 export type UpdateExpenseResponse = UpdateExpenseResponses[keyof UpdateExpenseResponses];
+
+export type RestoreExpenseData = {
+  body?: never;
+  path: {
+    expenseId: string;
+  };
+  query?: never;
+  url: '/expenses/{expenseId}/restore';
+};
+
+export type RestoreExpenseResponses = {
+  /**
+   * Restored expense
+   */
+  200: Expense;
+};
+
+export type RestoreExpenseResponse = RestoreExpenseResponses[keyof RestoreExpenseResponses];
+
+export type ListExpenseCommentsData = {
+  body?: never;
+  path: {
+    expenseId: string;
+  };
+  query?: never;
+  url: '/expenses/{expenseId}/comments';
+};
+
+export type ListExpenseCommentsResponses = {
+  /**
+   * Comments, oldest first
+   */
+  200: Array<Comment>;
+};
+
+export type ListExpenseCommentsResponse =
+  ListExpenseCommentsResponses[keyof ListExpenseCommentsResponses];
+
+export type CreateExpenseCommentData = {
+  body: {
+    body: string;
+  };
+  path: {
+    expenseId: string;
+  };
+  query?: never;
+  url: '/expenses/{expenseId}/comments';
+};
+
+export type CreateExpenseCommentResponses = {
+  /**
+   * Comment created
+   */
+  201: Comment;
+};
+
+export type CreateExpenseCommentResponse =
+  CreateExpenseCommentResponses[keyof CreateExpenseCommentResponses];
+
+export type DeleteCommentData = {
+  body?: never;
+  path: {
+    commentId: string;
+  };
+  query?: never;
+  url: '/comments/{commentId}';
+};
+
+export type DeleteCommentResponses = {
+  /**
+   * Deleted
+   */
+  204: void;
+};
+
+export type DeleteCommentResponse = DeleteCommentResponses[keyof DeleteCommentResponses];
+
+export type RevokeInvitesData = {
+  body?: never;
+  path: {
+    workspaceId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/invites';
+};
+
+export type RevokeInvitesResponses = {
+  /**
+   * Revoked
+   */
+  204: void;
+};
+
+export type RevokeInvitesResponse = RevokeInvitesResponses[keyof RevokeInvitesResponses];
+
+export type CreateInviteData = {
+  body?: never;
+  path: {
+    workspaceId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/invites';
+};
+
+export type CreateInviteResponses = {
+  /**
+   * The raw token is shown only once
+   */
+  201: {
+    token: string;
+    expiresAt: string;
+  };
+};
+
+export type CreateInviteResponse = CreateInviteResponses[keyof CreateInviteResponses];
+
+export type PreviewInviteData = {
+  body?: never;
+  path: {
+    token: string;
+  };
+  query?: never;
+  url: '/invites/{token}';
+};
+
+export type PreviewInviteResponses = {
+  /**
+   * What the join page shows
+   */
+  200: {
+    workspaceName: string;
+    memberCount: number;
+    invitedBy?: string | null;
+    alreadyMember: boolean;
+  };
+};
+
+export type PreviewInviteResponse = PreviewInviteResponses[keyof PreviewInviteResponses];
+
+export type AcceptInviteData = {
+  body?: never;
+  path: {
+    token: string;
+  };
+  query?: never;
+  url: '/invites/{token}/accept';
+};
+
+export type AcceptInviteResponses = {
+  /**
+   * Joined (or already a member)
+   */
+  200: {
+    workspaceId: string;
+  };
+};
+
+export type AcceptInviteResponse = AcceptInviteResponses[keyof AcceptInviteResponses];
+
+export type LeaveWorkspaceData = {
+  body?: never;
+  path: {
+    workspaceId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/leave';
+};
+
+export type LeaveWorkspaceResponses = {
+  /**
+   * Left
+   */
+  204: void;
+};
+
+export type LeaveWorkspaceResponse = LeaveWorkspaceResponses[keyof LeaveWorkspaceResponses];
+
+export type GetDirectWorkspaceData = {
+  body?: never;
+  path: {
+    userId: string;
+  };
+  query?: never;
+  url: '/friends/{userId}/workspace';
+};
+
+export type GetDirectWorkspaceResponses = {
+  /**
+   * The two-person ledger
+   */
+  200: Workspace;
+};
+
+export type GetDirectWorkspaceResponse =
+  GetDirectWorkspaceResponses[keyof GetDirectWorkspaceResponses];
 
 export type GetBalancesData = {
   body?: never;

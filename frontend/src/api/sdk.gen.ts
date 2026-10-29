@@ -3,14 +3,22 @@
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
 import type {
+  AcceptInviteData,
+  AcceptInviteResponses,
+  CreateExpenseCommentData,
+  CreateExpenseCommentResponses,
   CreateExpenseData,
   CreateExpenseResponses,
   CreateGlobalSettlementData,
   CreateGlobalSettlementResponses,
+  CreateInviteData,
+  CreateInviteResponses,
   CreateSettlementData,
   CreateSettlementResponses,
   CreateWorkspaceData,
   CreateWorkspaceResponses,
+  DeleteCommentData,
+  DeleteCommentResponses,
   DeleteExpenseData,
   DeleteExpenseResponses,
   DeleteWorkspaceData,
@@ -25,6 +33,8 @@ import type {
   GetCurrentUserResponses,
   GetDebtsData,
   GetDebtsResponses,
+  GetDirectWorkspaceData,
+  GetDirectWorkspaceResponses,
   GetExpenseData,
   GetExpenseResponses,
   GetFriendsBalancesData,
@@ -43,12 +53,22 @@ import type {
   GetWorkspacesResponses,
   InviteMemberData,
   InviteMemberResponses,
+  LeaveWorkspaceData,
+  LeaveWorkspaceResponses,
+  ListExpenseCommentsData,
+  ListExpenseCommentsResponses,
   ListSettlementsData,
   ListSettlementsResponses,
   ListWorkspaceExpensesData,
   ListWorkspaceExpensesResponses,
+  PreviewInviteData,
+  PreviewInviteResponses,
   RemoveMemberData,
   RemoveMemberResponses,
+  RestoreExpenseData,
+  RestoreExpenseResponses,
+  RevokeInvitesData,
+  RevokeInvitesResponses,
   UpdateExpenseData,
   UpdateExpenseResponses,
   UpdateWorkspaceData,
@@ -383,6 +403,190 @@ export const updateExpense = <ThrowOnError extends boolean = false>(
       'Content-Type': 'application/json',
       ...options.headers,
     },
+  });
+
+/**
+ * Undo an expense deletion
+ */
+export const restoreExpense = <ThrowOnError extends boolean = false>(
+  options: Options<RestoreExpenseData, ThrowOnError>,
+): RequestResult<RestoreExpenseResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).post<RestoreExpenseResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/expenses/{expenseId}/restore',
+    ...options,
+  });
+
+/**
+ * List comments on an expense
+ */
+export const listExpenseComments = <ThrowOnError extends boolean = false>(
+  options: Options<ListExpenseCommentsData, ThrowOnError>,
+): RequestResult<ListExpenseCommentsResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).get<ListExpenseCommentsResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/expenses/{expenseId}/comments',
+    ...options,
+  });
+
+/**
+ * Comment on an expense
+ */
+export const createExpenseComment = <ThrowOnError extends boolean = false>(
+  options: Options<CreateExpenseCommentData, ThrowOnError>,
+): RequestResult<CreateExpenseCommentResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).post<CreateExpenseCommentResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/expenses/{expenseId}/comments',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Delete a comment (author or admin)
+ */
+export const deleteComment = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteCommentData, ThrowOnError>,
+): RequestResult<DeleteCommentResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).delete<DeleteCommentResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/comments/{commentId}',
+    ...options,
+  });
+
+/**
+ * Revoke every active join link (admin)
+ */
+export const revokeInvites = <ThrowOnError extends boolean = false>(
+  options: Options<RevokeInvitesData, ThrowOnError>,
+): RequestResult<RevokeInvitesResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).delete<RevokeInvitesResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/invites',
+    ...options,
+  });
+
+/**
+ * Create a join link (admin)
+ */
+export const createInvite = <ThrowOnError extends boolean = false>(
+  options: Options<CreateInviteData, ThrowOnError>,
+): RequestResult<CreateInviteResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).post<CreateInviteResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/invites',
+    ...options,
+  });
+
+/**
+ * Preview a join link
+ */
+export const previewInvite = <ThrowOnError extends boolean = false>(
+  options: Options<PreviewInviteData, ThrowOnError>,
+): RequestResult<PreviewInviteResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).get<PreviewInviteResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/invites/{token}',
+    ...options,
+  });
+
+/**
+ * Join a workspace through a link
+ */
+export const acceptInvite = <ThrowOnError extends boolean = false>(
+  options: Options<AcceptInviteData, ThrowOnError>,
+): RequestResult<AcceptInviteResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).post<AcceptInviteResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/invites/{token}/accept',
+    ...options,
+  });
+
+/**
+ * Leave a workspace
+ */
+export const leaveWorkspace = <ThrowOnError extends boolean = false>(
+  options: Options<LeaveWorkspaceData, ThrowOnError>,
+): RequestResult<LeaveWorkspaceResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).post<LeaveWorkspaceResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/leave',
+    ...options,
+  });
+
+/**
+ * Find or create the private ledger with a friend
+ */
+export const getDirectWorkspace = <ThrowOnError extends boolean = false>(
+  options: Options<GetDirectWorkspaceData, ThrowOnError>,
+): RequestResult<GetDirectWorkspaceResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).post<GetDirectWorkspaceResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/friends/{userId}/workspace',
+    ...options,
   });
 
 /**

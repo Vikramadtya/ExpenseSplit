@@ -280,4 +280,175 @@ suite('ExpenseSplit API (integration)', () => {
       await request(app.getHttpServer()).post('/api/v1/auth/refresh').send({}).expect(400);
     });
   });
+
+  describe('collaboration', () => {
+    let flat: string;
+    let rent: string;
+    const today = () => new Date().toISOString();
+
+    beforeAll(async () => {
+      flat = (await api('post', '/workspaces', alice).send({ name: 'Flat' })).body.id;
+      await api('post', `/workspaces/${flat}/members`, alice).send({
+        email: `bob-${tag}@test.dev`,
+      });
+      const res = await api('post', `/workspaces/${flat}/expenses`, alice)
+        .send({
+          description: 'Rent',
+          amount: 200,
+          date: today(),
+          payers: [{ userId: alice.id, amount: 200 }],
+          participants: [alice.id, bob.id],
+        })
+        .expect(201);
+      rent = res.body.id;
+    });
+
+    const bobOwes = async () =>
+      (await api('get', `/workspaces/${flat}/balances/debts`, alice)).body as Array<{
+        amount: number;
+      }>;
+
+    it('limits editing and deleting to the creator or an admin', async () => {
+      const bobsExpense = (
+        await api('post', `/workspaces/${flat}/expenses`, bob).send({
+          description: 'Snacks',
+          amount: 10,
+          date: today(),
+          payers: [{ userId: bob.id, amount: 10 }],
+          participants: [bob.id],
+        })
+      ).body.id;
+      // Bob can't touch Alice's expense...
+      await api('patch', `/expenses/${rent}`, bob).send({ description: 'x' }).expect(403);
+      await api('delete', `/expenses/${rent}`, bob).expect(403);
+      // ...but Alice (admin) can change Bob's, and Bob can change his own.
+      await api('patch', `/expenses/${bobsExpense}`, alice)
+        .send({ description: 'Snacks!' })
+        .expect(200);
+      await api('patch', `/expenses/${bobsExpense}`, bob)
+        .send({ description: 'Snacks?' })
+        .expect(200);
+    });
+
+    it('deletes softly, drops the expense from balances, and restores it', async () => {
+      expect(await bobOwes()).toEqual([expect.objectContaining({ amount: 100 })]);
+
+      await api('delete', `/expenses/${rent}`, alice).expect(204);
+      await api('get', `/expenses/${rent}`, alice).expect(404);
+      expect(await bobOwes()).toEqual([]);
+      const list = await api('get', `/workspaces/${flat}/expenses`, alice).expect(200);
+      expect(list.body.map((e: { id: string }) => e.id)).not.toContain(rent);
+
+      await api('post', `/expenses/${rent}/restore`, bob).expect(403);
+      await api('post', `/expenses/${rent}/restore`, alice).expect(200);
+      expect(await bobOwes()).toEqual([expect.objectContaining({ amount: 100 })]);
+    });
+
+    it('lets members comment, and only authors or admins delete comments', async () => {
+      const mine = await api('post', `/expenses/${rent}/comments`, bob)
+        .send({ body: 'Paid you back?' })
+        .expect(201);
+      await api('post', `/expenses/${rent}/comments`, bob).send({ body: '   ' }).expect(400);
+      await api('post', `/expenses/${rent}/comments`, eve).send({ body: 'hi' }).expect(404);
+
+      const list = await api('get', `/expenses/${rent}/comments`, alice).expect(200);
+      expect(list.body).toEqual([
+        expect.objectContaining({
+          body: 'Paid you back?',
+          user: expect.objectContaining({ name: 'bob' }),
+        }),
+      ]);
+      await api('get', `/expenses/${rent}/comments`, eve).expect(404);
+
+      const alices = await api('post', `/expenses/${rent}/comments`, alice)
+        .send({ body: 'Yes' })
+        .expect(201);
+      await api('delete', `/comments/${alices.body.id}`, bob).expect(403);
+      await api('delete', `/comments/${mine.body.id}`, alice).expect(204); // admin may remove it
+      await api('delete', `/comments/${alices.body.id}`, alice).expect(204);
+    });
+
+    it('invites people with a revocable link', async () => {
+      await api('post', `/workspaces/${flat}/invites`, bob).expect(403);
+      const { body } = await api('post', `/workspaces/${flat}/invites`, alice).expect(201);
+
+      const preview = await api('get', `/invites/${body.token}`, eve).expect(200);
+      expect(preview.body).toEqual({
+        workspaceName: 'Flat',
+        memberCount: 2,
+        invitedBy: 'alice',
+        alreadyMember: false,
+      });
+      await api('post', `/invites/${body.token}/accept`, eve).expect(200);
+      await api('post', `/invites/${body.token}/accept`, eve).expect(200); // idempotent
+      await api('get', `/workspaces/${flat}/members`, eve).expect(200);
+      expect((await api('get', `/workspaces/${flat}/members`, alice)).body).toHaveLength(3);
+
+      await api('delete', `/workspaces/${flat}/invites`, alice).expect(204);
+      await api('get', `/invites/${body.token}`, carol).expect(404);
+      await api('get', '/invites/not-a-real-token', carol).expect(404);
+    });
+
+    it('promotes members and keeps at least one admin', async () => {
+      await api('patch', `/workspaces/${flat}/members/${bob.id}`, bob)
+        .send({ role: 'ADMIN' })
+        .expect(403);
+      await api('patch', `/workspaces/${flat}/members/${alice.id}`, alice)
+        .send({ role: 'MEMBER' })
+        .expect(400);
+      await api('patch', `/workspaces/${flat}/members/${eve.id}`, alice)
+        .send({ role: 'ADMIN' })
+        .expect(200);
+      await api('patch', `/workspaces/${flat}/members/${alice.id}`, eve)
+        .send({ role: 'MEMBER' })
+        .expect(200);
+      await api('patch', `/workspaces/${flat}/members/${alice.id}`, eve)
+        .send({ role: 'ADMIN' })
+        .expect(200);
+    });
+
+    it('lets settled members leave, but not those with a balance', async () => {
+      await api('post', `/workspaces/${flat}/leave`, bob).expect(400); // still owes Alice
+      await api('post', `/workspaces/${flat}/leave`, eve).expect(204);
+      await api('get', `/workspaces/${flat}`, eve).expect(404);
+    });
+
+    it('does not let the only admin abandon a group that has other members', async () => {
+      const solo = (await api('post', '/workspaces', alice).send({ name: 'Solo' })).body.id;
+      await api('post', `/workspaces/${solo}/members`, alice).send({
+        email: `bob-${tag}@test.dev`,
+      });
+      await api('post', `/workspaces/${solo}/leave`, alice).expect(400);
+    });
+
+    it('gives each pair of friends one private ledger', async () => {
+      const first = await api('post', `/friends/${bob.id}/workspace`, alice).expect(200);
+      const again = await api('post', `/friends/${alice.id}/workspace`, bob).expect(200);
+      expect(first.body.id).toBe(again.body.id);
+      expect(first.body.type).toBe('DIRECT');
+
+      const direct = first.body.id;
+      await api('post', `/workspaces/${direct}/members`, alice)
+        .send({ email: `carol-${tag}@test.dev` })
+        .expect(400);
+      await api('post', `/workspaces/${direct}/invites`, alice).expect(400);
+      await api('post', `/workspaces/${direct}/expenses`, alice)
+        .send({
+          description: 'Taxi',
+          amount: 20,
+          date: today(),
+          payers: [{ userId: alice.id, amount: 20 }],
+          participants: [alice.id, bob.id],
+        })
+        .expect(201);
+      const debts = await api('get', `/workspaces/${direct}/balances/debts`, bob).expect(200);
+      expect(debts.body).toEqual([
+        expect.objectContaining({ debtor: bob.id, creditor: alice.id, amount: 10 }),
+      ]);
+
+      await api('post', `/friends/${alice.id}/workspace`, alice).expect(400);
+      const stranger = await makeUser('stranger');
+      await api('post', `/friends/${stranger.id}/workspace`, alice).expect(404);
+    });
+  });
 });

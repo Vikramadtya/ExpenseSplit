@@ -15,6 +15,8 @@ import { ExpensesModule } from './expenses/expenses.module';
 import { BalancesModule } from './balances/balances.module';
 import { SettlementsModule } from './settlements/settlements.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { CommentsModule } from './comments/comments.module';
+import { InvitesModule } from './invites/invites.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { WorkspaceMemberGuard } from './auth/guards/workspace-member.guard';
 import { MetricsController } from './common/metrics.controller';
@@ -43,6 +45,8 @@ import { MetricsController } from './common/metrics.controller';
     BalancesModule,
     SettlementsModule,
     AnalyticsModule,
+    CommentsModule,
+    InvitesModule,
   ],
   controllers: [AppController],
   providers: [

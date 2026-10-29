@@ -18,6 +18,7 @@ import AnalyticsRoute from './routes/analytics';
 import MembersRoute from './routes/members';
 import ExpensesRoute from './routes/expenses';
 import FriendsRoute from './routes/friends';
+import JoinRoute from './routes/join';
 import { client } from './api/client.gen';
 import { getAccessToken, getFreshAccessToken, saveSession } from './auth/session';
 
@@ -45,6 +46,8 @@ client.interceptors.response.use((response) => {
 const queryClient = new QueryClient();
 
 // ─── Route Tree ───────────────────────────────────────────────────────────────
+
+const POST_LOGIN_KEY = 'post_login_redirect';
 
 const requireAuth = () => {
   if (import.meta.env.VITE_BYPASS_AUTH === 'true') return;
@@ -84,7 +87,26 @@ const authCallbackRoute = createRoute({
     const token = params.get('token');
     if (!token) throw redirect({ to: '/login' });
     saveSession(token, params.get('refresh'));
+    // Return to where sign-in was interrupted (e.g. an invite link), if anywhere.
+    const next = sessionStorage.getItem(POST_LOGIN_KEY);
+    sessionStorage.removeItem(POST_LOGIN_KEY);
+    if (next?.startsWith('/join/')) throw redirect({ href: next, replace: true });
     throw redirect({ to: '/workspaces', replace: true });
+  },
+});
+
+const joinRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/join/$token',
+  beforeLoad: ({ location }) => {
+    if (!getAccessToken()) {
+      sessionStorage.setItem(POST_LOGIN_KEY, location.pathname);
+      throw redirect({ to: '/login' });
+    }
+  },
+  component: function JoinPage() {
+    const { token } = joinRoute.useParams();
+    return <JoinRoute token={token} />;
   },
 });
 
@@ -165,6 +187,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   authCallbackRoute,
   workspacesRoute,
+  joinRoute,
   dashboardRoute,
   expensesRoute,
   membersRoute,

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, arrayOverlaps, eq, gte, ilike, lt, lte, or, sql } from 'drizzle-orm';
+import { and, arrayOverlaps, eq, gte, ilike, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { DRIZZLE_CLIENT } from '../database/database.module';
 import type { DrizzleDb } from '../database/database.module';
 import { expenses, expenseSplits } from '../database/schema';
@@ -24,6 +24,7 @@ export class ExpensesRepository implements IExpensesRepository {
     return this.db.query.expenses.findMany({
       where: and(
         eq(expenses.workspaceId, workspaceId),
+        isNull(expenses.deletedAt),
         q ? ilike(expenses.description, `%${escapeLike(q)}%`) : undefined,
         tags?.length ? arrayOverlaps(expenses.tags, tags) : undefined,
         currency ? eq(expenses.currency, currency) : undefined,
@@ -43,9 +44,9 @@ export class ExpensesRepository implements IExpensesRepository {
     });
   }
 
-  async findById(id: string): Promise<any> {
+  async findById(id: string, includeDeleted = false): Promise<any> {
     const expense = await this.db.query.expenses.findFirst({
-      where: eq(expenses.id, id),
+      where: and(eq(expenses.id, id), includeDeleted ? undefined : isNull(expenses.deletedAt)),
       with: WITH_RELATIONS,
     });
     return expense ?? null;
@@ -94,7 +95,11 @@ export class ExpensesRepository implements IExpensesRepository {
     return updated ? this.findById(id) : null;
   }
 
-  async delete(id: string): Promise<void> {
-    await this.db.delete(expenses).where(eq(expenses.id, id));
+  async softDelete(id: string): Promise<void> {
+    await this.db.update(expenses).set({ deletedAt: new Date() }).where(eq(expenses.id, id));
+  }
+
+  async restore(id: string): Promise<void> {
+    await this.db.update(expenses).set({ deletedAt: null }).where(eq(expenses.id, id));
   }
 }

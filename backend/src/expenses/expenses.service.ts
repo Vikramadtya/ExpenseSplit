@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -16,6 +17,7 @@ import type {
   IExpensesRepository,
   IWorkspacesRepository,
   NewSplit,
+  Role,
 } from '../common/interfaces/repository.interfaces';
 import { Money } from '../common/money/money';
 import { SplitStrategyRegistry } from './strategies/split-strategy.registry';
@@ -166,28 +168,50 @@ export class ExpensesService {
 
   async remove(workspaceId: string, expenseId: string) {
     await this.findOne(workspaceId, expenseId);
-    await this.expensesRepository.delete(expenseId);
+    await this.expensesRepository.softDelete(expenseId);
     return true;
   }
 
   /** For routes addressed by expense id: resolves the expense and checks the caller is a member. */
   async findOneWithUserAccess(expenseId: string, userId: string) {
-    const expense = await this.expensesRepository.findById(expenseId);
-    if (!expense) throw new NotFoundException('Expense not found');
-    const role = await this.workspacesRepository.findMemberRole(expense.workspaceId, userId);
-    // Same response as a missing expense so ids can't be probed across workspaces.
-    if (!role) throw new NotFoundException('Expense not found');
-    return expense;
+    return (await this.resolve(expenseId, userId)).expense;
   }
 
   async updateWithUserAccess(expenseId: string, userId: string, data: UpdateExpenseDto) {
-    const expense = await this.findOneWithUserAccess(expenseId, userId);
+    const { expense, role } = await this.resolve(expenseId, userId);
+    this.assertCanModify(expense, userId, role);
     return this.update(expense.workspaceId, expenseId, data);
   }
 
   async removeWithUserAccess(expenseId: string, userId: string) {
-    const expense = await this.findOneWithUserAccess(expenseId, userId);
+    const { expense, role } = await this.resolve(expenseId, userId);
+    this.assertCanModify(expense, userId, role);
     return this.remove(expense.workspaceId, expenseId);
+  }
+
+  /** Undo for delete. */
+  async restoreWithUserAccess(expenseId: string, userId: string) {
+    const { expense, role } = await this.resolve(expenseId, userId, true);
+    this.assertCanModify(expense, userId, role);
+    await this.expensesRepository.restore(expenseId);
+    return this.findOne(expense.workspaceId, expenseId);
+  }
+
+  private async resolve(expenseId: string, userId: string, includeDeleted = false) {
+    const expense = await this.expensesRepository.findById(expenseId, includeDeleted);
+    const role = expense
+      ? await this.workspacesRepository.findMemberRole(expense.workspaceId, userId)
+      : null;
+    // Same response as a missing expense so ids can't be probed across workspaces.
+    if (!expense || !role) throw new NotFoundException('Expense not found');
+    return { expense, role };
+  }
+
+  /** Members can add expenses; changing one is for whoever created it, or an admin. */
+  private assertCanModify(expense: { createdById: string }, userId: string, role: Role) {
+    if (role !== 'ADMIN' && expense.createdById !== userId) {
+      throw new ForbiddenException('Only the creator or a workspace admin can change this expense');
+    }
   }
 
   private extractSplitInput(data: SplitInput): SplitInput {

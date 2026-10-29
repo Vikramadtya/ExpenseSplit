@@ -15,7 +15,8 @@ features depend on correct money math and transactional writes.
 |-------|-------|
 | 0 Foundation and correctness | **Done**: `Money`, strategy registry (EQUAL/EXACT/PERCENTAGE/SHARES), atomic writes, edit recompute + optimistic locking, balances from net positions per currency, keyset pagination + search, migrations, CI tests |
 | 1 Security | **Mostly done**: global JWT + workspace-membership guards with roles, global Zod validation, helmet, rate limiting, token in URL fragment, **15-minute access tokens + single-use rotating refresh tokens with reuse detection and logout** (no cookies; refresh token lives in `localStorage`). **Open:** account deletion/export, dependency/secret scanning |
-| 2–8 | Not started |
+| 2 Splitwise parity | **Mostly done.** Backend + tests: soft delete with undo, creator-or-admin edit/delete, comments, shareable invite links (7-day, revocable), roles + leave, 1:1 friend ledgers. UI: instant delete with Undo, invite link + join page, comments in the edit modal, friend-ledger button, Leave button. **Open:** email invites (no mailer yet), group archive, unregistered-member merge, richer activity feed, role-management UI, comments/ledger/leave UI not yet checked in a browser |
+| 3–8 | Not started |
 
 Deviations from the original plan, and why:
 

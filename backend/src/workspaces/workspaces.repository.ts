@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { DRIZZLE_CLIENT } from '../database/database.module';
 import type { DrizzleDb } from '../database/database.module';
-import { eq, and, inArray, sql } from 'drizzle-orm';
+import { eq, and, inArray, isNull, sql } from 'drizzle-orm';
 import type { IWorkspacesRepository, Role } from '../common/interfaces/repository.interfaces';
 import { workspaceMembers, workspaces, expenses, settlements } from '../database/schema';
 
@@ -79,6 +79,65 @@ export class WorkspacesRepository implements IWorkspacesRepository {
     return member?.role ?? null;
   }
 
+  async setMemberRole(workspaceId: string, userId: string, role: Role): Promise<void> {
+    await this.db
+      .update(workspaceMembers)
+      .set({ role })
+      .where(
+        and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)),
+      );
+  }
+
+  async countAdmins(workspaceId: string): Promise<number> {
+    const [row] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(workspaceMembers)
+      .where(
+        and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.role, 'ADMIN')),
+      );
+    return row.count;
+  }
+
+  async findDirect(directKey: string): Promise<any> {
+    const [workspace] = await this.db
+      .select()
+      .from(workspaces)
+      .where(eq(workspaces.directKey, directKey))
+      .limit(1);
+    return workspace ?? null;
+  }
+
+  async createDirect(data: {
+    directKey: string;
+    name: string;
+    defaultCurrency: string;
+    userIds: [string, string];
+  }): Promise<any> {
+    const created = await this.db.transaction(async (tx) => {
+      const [workspace] = await tx
+        .insert(workspaces)
+        .values({
+          name: data.name,
+          defaultCurrency: data.defaultCurrency,
+          type: 'DIRECT',
+          directKey: data.directKey,
+        })
+        .onConflictDoNothing({ target: workspaces.directKey })
+        .returning();
+      // Lost a race with the other friend: the pair already has its ledger.
+      if (!workspace) return null;
+      await tx.insert(workspaceMembers).values(
+        data.userIds.map((userId) => ({
+          workspaceId: workspace.id,
+          userId,
+          role: 'ADMIN' as const,
+        })),
+      );
+      return workspace;
+    });
+    return created ?? this.findDirect(data.directKey);
+  }
+
   async allAreMembers(workspaceId: string, userIds: string[]): Promise<boolean> {
     const unique = [...new Set(userIds)];
     if (unique.length === 0) return true;
@@ -96,7 +155,7 @@ export class WorkspacesRepository implements IWorkspacesRepository {
 
   async getActivity(workspaceId: string): Promise<any[]> {
     const exp = await this.db.query.expenses.findMany({
-      where: eq(expenses.workspaceId, workspaceId),
+      where: and(eq(expenses.workspaceId, workspaceId), isNull(expenses.deletedAt)),
       with: { createdBy: true },
       orderBy: (expenses, { desc }) => [desc(expenses.createdAt)],
       limit: 20,

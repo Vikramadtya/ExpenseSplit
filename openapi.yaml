@@ -72,9 +72,42 @@ components:
         defaultCurrency:
           type: string
           example: USD
+        type:
+          type: string
+          enum: [GROUP, DIRECT]
+          description: DIRECT is the private ledger between two friends
         createdAt:
           type: string
           format: date-time
+    Comment:
+      type: object
+      required: [id, expenseId, userId, body, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        expenseId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            avatarUrl:
+              type: string
+              nullable: true
     Expense:
       type: object
       required:
@@ -1013,6 +1046,206 @@ paths:
       responses:
         '204':
           description: Deleted
+  /expenses/{expenseId}/restore:
+    post:
+      summary: Undo an expense deletion
+      operationId: restoreExpense
+      parameters:
+      - name: expenseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Restored expense
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+  /expenses/{expenseId}/comments:
+    get:
+      summary: List comments on an expense
+      operationId: listExpenseComments
+      parameters:
+      - name: expenseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Comments, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Comment'
+    post:
+      summary: Comment on an expense
+      operationId: createExpenseComment
+      parameters:
+      - name: expenseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body:
+                  type: string
+                  maxLength: 2000
+      responses:
+        '201':
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+  /comments/{commentId}:
+    delete:
+      summary: Delete a comment (author or admin)
+      operationId: deleteComment
+      parameters:
+      - name: commentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: Deleted
+  /workspaces/{workspaceId}/invites:
+    post:
+      summary: Create a join link (admin)
+      operationId: createInvite
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '201':
+          description: The raw token is shown only once
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, expiresAt]
+                properties:
+                  token:
+                    type: string
+                  expiresAt:
+                    type: string
+                    format: date-time
+    delete:
+      summary: Revoke every active join link (admin)
+      operationId: revokeInvites
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: Revoked
+  /invites/{token}:
+    get:
+      summary: Preview a join link
+      operationId: previewInvite
+      parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: What the join page shows
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [workspaceName, memberCount, alreadyMember]
+                properties:
+                  workspaceName:
+                    type: string
+                  memberCount:
+                    type: integer
+                  invitedBy:
+                    type: string
+                    nullable: true
+                  alreadyMember:
+                    type: boolean
+  /invites/{token}/accept:
+    post:
+      summary: Join a workspace through a link
+      operationId: acceptInvite
+      parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Joined (or already a member)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [workspaceId]
+                properties:
+                  workspaceId:
+                    type: string
+                    format: uuid
+  /workspaces/{workspaceId}/leave:
+    post:
+      summary: Leave a workspace
+      operationId: leaveWorkspace
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: Left
+  /friends/{userId}/workspace:
+    post:
+      summary: Find or create the private ledger with a friend
+      operationId: getDirectWorkspace
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: The two-person ledger
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
   /workspaces/{workspaceId}/balances:
     get:
       summary: Get net balances for a workspace

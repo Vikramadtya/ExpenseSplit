@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { BalancesService } from '../balances/balances.service';
-import type { IWorkspacesRepository } from '../common/interfaces/repository.interfaces';
+import type { IWorkspacesRepository, Role } from '../common/interfaces/repository.interfaces';
 import { IWorkspacesRepositoryToken } from '../common/interfaces/repository.interfaces';
 import { UsersService } from '../users/users.service';
 
@@ -42,6 +42,7 @@ export class WorkspacesService {
   }
 
   async inviteMember(workspaceId: string, email: string) {
+    await this.assertIsGroup(workspaceId);
     const user = await this.usersService.findByEmail(email);
     if (!user) {
       throw new NotFoundException('User not found. They must sign up first.');
@@ -74,11 +75,72 @@ export class WorkspacesService {
   }
 
   async removeMember(workspaceId: string, userId: string) {
+    await this.assertIsGroup(workspaceId);
     if (await this.balancesService.hasOutstandingBalance(workspaceId, userId)) {
       throw new BadRequestException(
         'Cannot remove member with non-zero balance. Settle debts first.',
       );
     }
-    return this.repository.removeMember(workspaceId, userId);
+    await this.repository.removeMember(workspaceId, userId);
+    await this.deleteIfEmpty(workspaceId);
+  }
+
+  /** A member leaving on their own. Admins must hand over before leaving a group with others. */
+  async leave(workspaceId: string, userId: string) {
+    const role = await this.repository.findMemberRole(workspaceId, userId);
+    if (role === 'ADMIN' && (await this.repository.countAdmins(workspaceId)) === 1) {
+      const members = await this.repository.getMembers(workspaceId);
+      if (members.length > 1) {
+        throw new BadRequestException('Make another member an admin before leaving');
+      }
+    }
+    await this.removeMember(workspaceId, userId);
+  }
+
+  async setMemberRole(workspaceId: string, userId: string, role: Role) {
+    const current = await this.repository.findMemberRole(workspaceId, userId);
+    if (!current) throw new NotFoundException('Member not found');
+    if (
+      current === 'ADMIN' &&
+      role === 'MEMBER' &&
+      (await this.repository.countAdmins(workspaceId)) === 1
+    ) {
+      throw new BadRequestException('A workspace needs at least one admin');
+    }
+    await this.repository.setMemberRole(workspaceId, userId, role);
+    return { userId, role };
+  }
+
+  /** The private two-person ledger with someone you already share a workspace with. */
+  async getOrCreateDirect(userId: string, friendId: string) {
+    if (userId === friendId)
+      throw new BadRequestException('You cannot open a ledger with yourself');
+    const friend = await this.usersService.findVisibleTo(userId, friendId);
+    const me = await this.usersService.findById(userId);
+
+    const directKey = [userId, friendId].sort().join(':');
+    return (
+      (await this.repository.findDirect(directKey)) ??
+      (await this.repository.createDirect({
+        directKey,
+        name: `${me.name} & ${friend.name}`,
+        defaultCurrency: 'USD',
+        userIds: [userId, friendId],
+      }))
+    );
+  }
+
+  private async assertIsGroup(workspaceId: string) {
+    const workspace = await this.getWorkspace(workspaceId);
+    if (workspace.type === 'DIRECT') {
+      throw new BadRequestException('Members of a direct ledger cannot be changed');
+    }
+  }
+
+  /** Nobody left to own the data: remove the (necessarily settled) workspace. */
+  private async deleteIfEmpty(workspaceId: string) {
+    if ((await this.repository.getMembers(workspaceId)).length === 0) {
+      await this.repository.delete(workspaceId);
+    }
   }
 }

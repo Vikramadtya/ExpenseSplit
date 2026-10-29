@@ -71,6 +71,12 @@ export class ExpensesController {
     return this.expensesService.updateWithUserAccess(id, req.user.id, data);
   }
 
+  @Post('expenses/:id/restore')
+  @HttpCode(200)
+  restoreExpense(@Param('id') id: string, @Req() req: { user: { id: string } }) {
+    return this.expensesService.restoreWithUserAccess(id, req.user.id);
+  }
+
   @Delete('expenses/:id')
   @HttpCode(204)
   async deleteExpense(@Param('id') id: string, @Req() req: { user: { id: string } }) {

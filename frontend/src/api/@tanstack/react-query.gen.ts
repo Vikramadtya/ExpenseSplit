@@ -10,10 +10,14 @@ import {
 
 import { client } from '../client.gen';
 import {
+  acceptInvite,
   createExpense,
+  createExpenseComment,
   createGlobalSettlement,
+  createInvite,
   createSettlement,
   createWorkspace,
+  deleteComment,
   deleteExpense,
   deleteWorkspace,
   getActivity,
@@ -21,6 +25,7 @@ import {
   getBalances,
   getCurrentUser,
   getDebts,
+  getDirectWorkspace,
   getExpense,
   getFriendsBalances,
   getGlobalAnalytics,
@@ -30,21 +35,34 @@ import {
   getWorkspaceMembers,
   getWorkspaces,
   inviteMember,
+  leaveWorkspace,
+  listExpenseComments,
   listSettlements,
   listWorkspaceExpenses,
   type Options,
+  previewInvite,
   removeMember,
+  restoreExpense,
+  revokeInvites,
   updateExpense,
   updateWorkspace,
 } from '../sdk.gen';
 import type {
+  AcceptInviteData,
+  AcceptInviteResponse,
+  CreateExpenseCommentData,
+  CreateExpenseCommentResponse,
   CreateExpenseData,
   CreateExpenseResponse,
   CreateGlobalSettlementData,
+  CreateInviteData,
+  CreateInviteResponse,
   CreateSettlementData,
   CreateSettlementResponse,
   CreateWorkspaceData,
   CreateWorkspaceResponse,
+  DeleteCommentData,
+  DeleteCommentResponse,
   DeleteExpenseData,
   DeleteExpenseResponse,
   DeleteWorkspaceData,
@@ -59,6 +77,8 @@ import type {
   GetCurrentUserResponse,
   GetDebtsData,
   GetDebtsResponse,
+  GetDirectWorkspaceData,
+  GetDirectWorkspaceResponse,
   GetExpenseData,
   GetExpenseResponse,
   GetFriendsBalancesData,
@@ -77,12 +97,22 @@ import type {
   GetWorkspacesResponse,
   InviteMemberData,
   InviteMemberResponse,
+  LeaveWorkspaceData,
+  LeaveWorkspaceResponse,
+  ListExpenseCommentsData,
+  ListExpenseCommentsResponse,
   ListSettlementsData,
   ListSettlementsResponse,
   ListWorkspaceExpensesData,
   ListWorkspaceExpensesResponse,
+  PreviewInviteData,
+  PreviewInviteResponse,
   RemoveMemberData,
   RemoveMemberResponse,
+  RestoreExpenseData,
+  RestoreExpenseResponse,
+  RevokeInvitesData,
+  RevokeInvitesResponse,
   UpdateExpenseData,
   UpdateExpenseResponse,
   UpdateWorkspaceData,
@@ -578,6 +608,248 @@ export const updateExpenseMutation = (
   > = {
     mutationFn: async (fnOptions) => {
       const { data } = await updateExpense({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Undo an expense deletion
+ */
+export const restoreExpenseMutation = (
+  options?: Partial<Options<RestoreExpenseData>>,
+): UseMutationOptions<RestoreExpenseResponse, DefaultError, Options<RestoreExpenseData>> => {
+  const mutationOptions: UseMutationOptions<
+    RestoreExpenseResponse,
+    DefaultError,
+    Options<RestoreExpenseData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await restoreExpense({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+export const listExpenseCommentsQueryKey = (options: Options<ListExpenseCommentsData>) =>
+  createQueryKey('listExpenseComments', options);
+
+/**
+ * List comments on an expense
+ */
+export const listExpenseCommentsOptions = (options: Options<ListExpenseCommentsData>) =>
+  queryOptions<
+    ListExpenseCommentsResponse,
+    DefaultError,
+    ListExpenseCommentsResponse,
+    ReturnType<typeof listExpenseCommentsQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listExpenseComments({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: listExpenseCommentsQueryKey(options),
+  });
+
+/**
+ * Comment on an expense
+ */
+export const createExpenseCommentMutation = (
+  options?: Partial<Options<CreateExpenseCommentData>>,
+): UseMutationOptions<
+  CreateExpenseCommentResponse,
+  DefaultError,
+  Options<CreateExpenseCommentData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    CreateExpenseCommentResponse,
+    DefaultError,
+    Options<CreateExpenseCommentData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createExpenseComment({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Delete a comment (author or admin)
+ */
+export const deleteCommentMutation = (
+  options?: Partial<Options<DeleteCommentData>>,
+): UseMutationOptions<DeleteCommentResponse, DefaultError, Options<DeleteCommentData>> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteCommentResponse,
+    DefaultError,
+    Options<DeleteCommentData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteComment({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Revoke every active join link (admin)
+ */
+export const revokeInvitesMutation = (
+  options?: Partial<Options<RevokeInvitesData>>,
+): UseMutationOptions<RevokeInvitesResponse, DefaultError, Options<RevokeInvitesData>> => {
+  const mutationOptions: UseMutationOptions<
+    RevokeInvitesResponse,
+    DefaultError,
+    Options<RevokeInvitesData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await revokeInvites({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Create a join link (admin)
+ */
+export const createInviteMutation = (
+  options?: Partial<Options<CreateInviteData>>,
+): UseMutationOptions<CreateInviteResponse, DefaultError, Options<CreateInviteData>> => {
+  const mutationOptions: UseMutationOptions<
+    CreateInviteResponse,
+    DefaultError,
+    Options<CreateInviteData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createInvite({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+export const previewInviteQueryKey = (options: Options<PreviewInviteData>) =>
+  createQueryKey('previewInvite', options);
+
+/**
+ * Preview a join link
+ */
+export const previewInviteOptions = (options: Options<PreviewInviteData>) =>
+  queryOptions<
+    PreviewInviteResponse,
+    DefaultError,
+    PreviewInviteResponse,
+    ReturnType<typeof previewInviteQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await previewInvite({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: previewInviteQueryKey(options),
+  });
+
+/**
+ * Join a workspace through a link
+ */
+export const acceptInviteMutation = (
+  options?: Partial<Options<AcceptInviteData>>,
+): UseMutationOptions<AcceptInviteResponse, DefaultError, Options<AcceptInviteData>> => {
+  const mutationOptions: UseMutationOptions<
+    AcceptInviteResponse,
+    DefaultError,
+    Options<AcceptInviteData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await acceptInvite({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Leave a workspace
+ */
+export const leaveWorkspaceMutation = (
+  options?: Partial<Options<LeaveWorkspaceData>>,
+): UseMutationOptions<LeaveWorkspaceResponse, DefaultError, Options<LeaveWorkspaceData>> => {
+  const mutationOptions: UseMutationOptions<
+    LeaveWorkspaceResponse,
+    DefaultError,
+    Options<LeaveWorkspaceData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await leaveWorkspace({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Find or create the private ledger with a friend
+ */
+export const getDirectWorkspaceMutation = (
+  options?: Partial<Options<GetDirectWorkspaceData>>,
+): UseMutationOptions<
+  GetDirectWorkspaceResponse,
+  DefaultError,
+  Options<GetDirectWorkspaceData>
+> => {
+  const mutationOptions: UseMutationOptions<
+    GetDirectWorkspaceResponse,
+    DefaultError,
+    Options<GetDirectWorkspaceData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await getDirectWorkspace({
         ...options,
         ...fnOptions,
         throwOnError: true,

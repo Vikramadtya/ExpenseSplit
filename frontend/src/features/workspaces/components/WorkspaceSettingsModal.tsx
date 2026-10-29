@@ -4,6 +4,7 @@ import {
   updateWorkspaceMutation,
   deleteWorkspaceMutation,
   removeMemberMutation,
+  leaveWorkspaceMutation,
   getWorkspaceMembersOptions,
 } from '../../../api/@tanstack/react-query.gen';
 import { X, Settings, Trash2, UserMinus, AlertTriangle, Save } from 'lucide-react';
@@ -22,6 +23,19 @@ export function WorkspaceSettingsModal({ isOpen, onClose, workspace }: Props) {
   const [name, setName] = useState(workspace?.name || '');
   const [currency, setCurrency] = useState(workspace?.defaultCurrency || 'USD');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const leaveMutation = useMutation({
+    ...leaveWorkspaceMutation(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['getWorkspaces'] });
+      toast.success('You left the workspace');
+      onClose();
+      navigate({ to: '/workspaces' });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || 'Settle your balance (or make another admin) before leaving');
+    },
+  });
 
   const { data: members = [] } = useQuery(
     getWorkspaceMembersOptions({ path: { workspaceId: workspace?.id } }),
@@ -190,6 +204,16 @@ export function WorkspaceSettingsModal({ isOpen, onClose, workspace }: Props) {
                 </div>
               ))}
             </div>
+          </section>
+
+          <section>
+            <button
+              onClick={() => leaveMutation.mutate({ path: { workspaceId: workspace.id } })}
+              disabled={leaveMutation.isPending}
+              className="text-sm font-medium text-text-muted hover:text-text-main underline underline-offset-2"
+            >
+              Leave this workspace
+            </button>
           </section>
 
           {/* Danger Zone */}

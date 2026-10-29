@@ -17,6 +17,7 @@ import { relations, sql } from 'drizzle-orm';
 // --- ENUMS ---
 
 export const roleEnum = pgEnum('role', ['ADMIN', 'MEMBER']);
+export const workspaceTypeEnum = pgEnum('workspace_type', ['GROUP', 'DIRECT']);
 export const splitTypeEnum = pgEnum('split_type', ['EQUAL', 'EXACT', 'PERCENTAGE', 'SHARES']);
 export const expenseTypeEnum = pgEnum('expense_type', ['EXPENSE', 'TRANSFER']);
 export const recurringIntervalEnum = pgEnum('recurring_interval', [
@@ -38,12 +39,20 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
-export const workspaces = pgTable('workspaces', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: varchar('name', { length: 255 }).notNull(),
-  defaultCurrency: varchar('default_currency', { length: 3 }).notNull().default('USD'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+export const workspaces = pgTable(
+  'workspaces',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 255 }).notNull(),
+    defaultCurrency: varchar('default_currency', { length: 3 }).notNull().default('USD'),
+    /** GROUP = shared group; DIRECT = the private ledger between exactly two friends. */
+    type: workspaceTypeEnum('type').notNull().default('GROUP'),
+    /** For DIRECT ledgers: the two user ids, sorted, so a pair can only have one. */
+    directKey: varchar('direct_key', { length: 73 }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex('workspaces_direct_key_uq').on(t.directKey)],
+);
 
 export const workspaceMembers = pgTable(
   'workspace_members',
@@ -83,6 +92,8 @@ export const expenses = pgTable(
     currency: varchar('currency', { length: 3 }).notNull().default('USD'),
     version: integer('version').notNull().default(1),
     splitInput: jsonb('split_input'),
+    /** Soft delete: lets "Undo" restore the expense. Excluded from balances and lists. */
+    deletedAt: timestamp('deleted_at'),
     recurringInterval: recurringIntervalEnum('recurring_interval').default('NONE').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
@@ -156,6 +167,47 @@ export const refreshTokens = pgTable(
   ],
 );
 
+export const expenseComments = pgTable(
+  'expense_comments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    expenseId: uuid('expense_id')
+      .notNull()
+      .references(() => expenses.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    body: varchar('body', { length: 2000 }).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [index('expense_comments_expense_idx').on(t.expenseId, t.createdAt)],
+);
+
+/** Shareable join links. Only a SHA-256 hash of the token is stored. */
+export const invites = pgTable(
+  'invites',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    createdById: uuid('created_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    revokedAt: timestamp('revoked_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex('invites_token_hash_uq').on(t.tokenHash),
+    index('invites_workspace_idx').on(t.workspaceId),
+  ],
+);
+
 // --- RELATIONS ---
 
 export const workspacesRelations = relations(workspaces, ({ many }) => ({
@@ -213,4 +265,8 @@ export const settlementsRelations = relations(settlements, ({ one }) => ({
     fields: [settlements.workspaceId],
     references: [workspaces.id],
   }),
+}));
+
+export const expenseCommentsRelations = relations(expenseComments, ({ one }) => ({
+  user: one(users, { fields: [expenseComments.userId], references: [users.id] }),
 }));

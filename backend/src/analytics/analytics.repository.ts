@@ -21,7 +21,7 @@ export class AnalyticsRepository {
     const totalSpendResult = await this.db.execute(sql`
       SELECT SUM(amount) as total, COUNT(id) as count
       FROM expenses
-      WHERE workspace_id = ${workspaceId}
+      WHERE workspace_id = ${workspaceId} AND deleted_at IS NULL
     `);
     const totalSpend = Number(totalSpendResult[0]?.total || 0);
     const expenseCount = Number(totalSpendResult[0]?.count || 0);
@@ -29,7 +29,7 @@ export class AnalyticsRepository {
     const spendOverTime = await this.db.execute(sql`
       SELECT date_trunc('day', date) as day, SUM(amount) as total
       FROM expenses
-      WHERE workspace_id = ${workspaceId}
+      WHERE workspace_id = ${workspaceId} AND deleted_at IS NULL
       GROUP BY day
       ORDER BY day ASC
     `);
@@ -40,7 +40,7 @@ export class AnalyticsRepository {
       FROM (
         SELECT amount, unnest(tags) as tag
         FROM expenses
-        WHERE workspace_id = ${workspaceId}
+        WHERE workspace_id = ${workspaceId} AND deleted_at IS NULL
       ) t
       GROUP BY tag
       ORDER BY total DESC
@@ -51,7 +51,8 @@ export class AnalyticsRepository {
       SELECT u.id as "userId", u.name, SUM(s.amount_owed) as amount
       FROM expense_splits s
       JOIN users u ON s.user_id = u.id
-      WHERE s.workspace_id = ${workspaceId}
+      JOIN expenses e ON e.id = s.expense_id
+      WHERE s.workspace_id = ${workspaceId} AND e.deleted_at IS NULL
       GROUP BY u.id, u.name
       ORDER BY amount DESC
     `);

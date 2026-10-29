@@ -6,6 +6,7 @@ import {
   getWorkspaceMembersQueryKey,
 } from '../../../api/@tanstack/react-query.gen';
 import { X, Mail, UserPlus, Check } from 'lucide-react';
+import { InviteLinkSection } from './InviteLinkSection';
 
 interface Props {
   isOpen: boolean;
@@ -81,10 +82,10 @@ export function InviteMemberModal({ isOpen, onClose, workspaceId }: Props) {
                 <Check className="w-8 h-8" />
               </div>
               <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
-                Invitation Sent!
+                Member Added!
               </h3>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                They will receive an email shortly.
+                They can now see this workspace.
               </p>
             </div>
           ) : (
@@ -130,11 +131,13 @@ export function InviteMemberModal({ isOpen, onClose, workspaceId }: Props) {
                   disabled={!email.trim() || inviteMutation.isPending}
                   className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors flex items-center gap-2"
                 >
-                  {inviteMutation.isPending ? 'Sending...' : 'Send Invite'}
+                  {inviteMutation.isPending ? 'Adding...' : 'Add Member'}
                 </button>
               </div>
             </form>
           )}
+
+          <InviteLinkSection workspaceId={workspaceId} />
 
           <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
             <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-4">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ExpenseComments } from './ExpenseComments';
 import { ALL_CATEGORIES } from '../../../utils/constants';
 import type { Expense } from '../../../api/types.gen';
 type SplitType = 'EQUAL' | 'EXACT' | 'PERCENTAGE';
@@ -380,6 +381,7 @@ export const EditExpenseModal: React.FC<Props> = ({ isOpen, onClose, expense, wo
             </button>
           </div>
         </form>
+        <ExpenseComments expenseId={expense.id} />
       </div>
     </div>
   );

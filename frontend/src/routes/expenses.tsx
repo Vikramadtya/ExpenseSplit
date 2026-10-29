@@ -5,11 +5,13 @@ import {
   listWorkspaceExpensesOptions,
   getWorkspaceMembersOptions,
   deleteExpenseMutation,
+  restoreExpenseMutation,
 } from '../api/@tanstack/react-query.gen';
 import { formatCurrency } from '../utils/currency';
 import { Search, Filter, ArrowUpDown, Pencil, Trash2 } from 'lucide-react';
 import { EditExpenseModal } from '../features/expenses/components/EditExpenseModal';
 import { useUiStore } from '../store/ui.store';
+import toast from 'react-hot-toast';
 
 const CATEGORY_ICONS: Record<string, string> = {
   'Food & Drink': '🍽️',
@@ -44,20 +46,20 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
     'date-desc',
   );
 
-  const { data: expenses = [], isLoading } = useQuery(
-    listWorkspaceExpensesOptions({
-      path: { workspaceId },
-      query: {
-        search: search || undefined,
-        currency: filterCurrency !== 'ALL' ? filterCurrency : undefined,
-        category: filterCategory !== 'ALL' ? filterCategory : undefined,
-        sortBy,
-      },
-    }),
-  );
+  const listOptions = listWorkspaceExpensesOptions({
+    path: { workspaceId },
+    query: {
+      search: search || undefined,
+      currency: filterCurrency !== 'ALL' ? filterCurrency : undefined,
+      category: filterCategory !== 'ALL' ? filterCategory : undefined,
+      sortBy,
+    },
+  });
+  const { data: expenses = [], isLoading } = useQuery(listOptions);
 
   const { data: members = [] } = useQuery(getWorkspaceMembersOptions({ path: { workspaceId } }));
   const deleteMutation = useMutation(deleteExpenseMutation());
+  const restoreMutation = useMutation(restoreExpenseMutation());
 
   const getMemberName = (id: string) => members.find((m: any) => m.id === id)?.name || 'Unknown';
 
@@ -70,11 +72,37 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
 
   const filtered = expenses; // Backend handles filtering and sorting now
 
+  // Deleting is instant and undoable: the row disappears at once, and the toast offers Undo.
   const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this expense?')) {
-      await deleteMutation.mutateAsync({ path: { expenseId: id } } as any);
-      queryClient.invalidateQueries();
+    const previous = queryClient.getQueryData<any[]>(listOptions.queryKey);
+    queryClient.setQueryData<any[]>(listOptions.queryKey, (old) => old?.filter((e) => e.id !== id));
+    try {
+      await deleteMutation.mutateAsync({ path: { expenseId: id } });
+    } catch {
+      queryClient.setQueryData(listOptions.queryKey, previous);
+      toast.error('Could not delete the expense');
+      return;
     }
+    queryClient.invalidateQueries();
+
+    toast(
+      (t) => (
+        <span className="flex items-center gap-3">
+          Expense deleted
+          <button
+            className="font-semibold text-indigo-500 hover:underline"
+            onClick={async () => {
+              toast.dismiss(t.id);
+              await restoreMutation.mutateAsync({ path: { expenseId: id } });
+              queryClient.invalidateQueries();
+            }}
+          >
+            Undo
+          </button>
+        </span>
+      ),
+      { duration: 8000 },
+    );
   };
 
   const editingExpense = expenses.find((e: any) => e.id === editingExpenseId);

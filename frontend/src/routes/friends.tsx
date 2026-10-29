@@ -2,9 +2,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getFriendsBalancesOptions,
   createGlobalSettlementMutation,
+  getDirectWorkspaceMutation,
 } from '../api/@tanstack/react-query.gen';
 import DashboardLayout from '../layouts/DashboardLayout';
-import { Users, CheckCircle2, Wallet } from 'lucide-react';
+import { Users, CheckCircle2, Wallet, BookOpen } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
 import { formatCurrency } from '../utils/currency';
 import toast from 'react-hot-toast';
 import { useState } from 'react';
@@ -13,6 +15,13 @@ export default function FriendsRoute() {
   const queryClient = useQueryClient();
   const { data: friends = [], isLoading } = useQuery(getFriendsBalancesOptions());
   const [settlingFriend, setSettlingFriend] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  const openLedger = useMutation({
+    ...getDirectWorkspaceMutation(),
+    onSuccess: (workspace) => navigate({ to: '/dashboard', search: { workspaceId: workspace.id } }),
+    onError: () => toast.error('Could not open the ledger'),
+  });
 
   const settleMutation = useMutation({
     ...createGlobalSettlementMutation(),
@@ -108,6 +117,15 @@ export default function FriendsRoute() {
                   >
                     {formatCurrency(Math.abs(friend.netBalance), friend.currency || 'USD')}
                   </span>
+
+                  <button
+                    onClick={() => openLedger.mutate({ path: { userId: friend.userId } })}
+                    disabled={openLedger.isPending}
+                    title="Expenses just between you two"
+                    className="p-2 text-text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                  >
+                    <BookOpen className="w-4 h-4" />
+                  </button>
 
                   {friend.netBalance < 0 && (
                     <button

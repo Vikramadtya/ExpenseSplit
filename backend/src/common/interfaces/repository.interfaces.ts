@@ -13,6 +13,16 @@ export interface IWorkspacesRepository {
   addMember(workspaceId: string, userId: string, role?: string): Promise<any>;
   getMembers(workspaceId: string): Promise<any[]>;
   findMemberRole(workspaceId: string, userId: string): Promise<Role | null>;
+  setMemberRole(workspaceId: string, userId: string, role: Role): Promise<void>;
+  countAdmins(workspaceId: string): Promise<number>;
+  findDirect(directKey: string): Promise<any>;
+  /** Creates the two-person ledger, or returns the existing one if the pair already has it. */
+  createDirect(data: {
+    directKey: string;
+    name: string;
+    defaultCurrency: string;
+    userIds: [string, string];
+  }): Promise<any>;
   allAreMembers(workspaceId: string, userIds: string[]): Promise<boolean>;
   getActivity(workspaceId: string): Promise<any[]>;
   update(id: string, data: { name?: string; defaultCurrency?: string }): Promise<any>;
@@ -56,7 +66,7 @@ export interface ExpenseFilter {
 
 export interface IExpensesRepository {
   findPage(workspaceId: string, filter: ExpenseFilter): Promise<any[]>;
-  findById(id: string): Promise<any>;
+  findById(id: string, includeDeleted?: boolean): Promise<any>;
   /** Inserts the expense and all its splits atomically. */
   createWithSplits(expense: NewExpense, splits: NewSplit[]): Promise<any>;
   /**
@@ -69,7 +79,9 @@ export interface IExpensesRepository {
     splits: NewSplit[] | null,
     expectedVersion?: number,
   ): Promise<any>;
-  delete(id: string): Promise<void>;
+  /** Soft delete: hidden from lists and balances, but can be restored. */
+  softDelete(id: string): Promise<void>;
+  restore(id: string): Promise<void>;
 }
 export const IExpensesRepositoryToken = Symbol('IExpensesRepository');
 

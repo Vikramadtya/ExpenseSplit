@@ -20,7 +20,7 @@ const netByMember = (scope: ReturnType<typeof sql>) => sql`
   SELECT workspace_id, user_id, currency, SUM(net) AS net FROM (
     SELECT s.workspace_id, s.user_id, e.currency, s.amount_paid - s.amount_owed AS net
       FROM expense_splits s JOIN expenses e ON e.id = s.expense_id
-     WHERE s.workspace_id ${scope}
+     WHERE s.workspace_id ${scope} AND e.deleted_at IS NULL
     UNION ALL
     SELECT workspace_id, payer_id, currency, amount FROM settlements WHERE workspace_id ${scope}
     UNION ALL
@@ -50,6 +50,7 @@ export class BalancesRepository implements IBalancesRepository {
       SELECT s.expense_id, s.user_id, s.amount_owed, s.amount_paid
         FROM expense_splits s JOIN expenses e ON e.id = s.expense_id
        WHERE s.workspace_id = ${workspaceId} AND e.currency = ${currency}
+         AND e.deleted_at IS NULL
     `);
     return rows.map((r) => ({
       expenseId: r.expense_id as string,
