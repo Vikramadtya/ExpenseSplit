@@ -56,6 +56,15 @@ components:
           type: string
           format: uri
           nullable: true
+        upiVpa:
+          type: string
+          nullable: true
+        paypalMe:
+          type: string
+          nullable: true
+        venmoHandle:
+          type: string
+          nullable: true
     Workspace:
       type: object
       required:
@@ -236,6 +245,16 @@ components:
       required:
       - byCurrency
       properties:
+        converted:
+          type: object
+          description: Present when convertTo was requested
+          properties:
+            currency:
+              type: string
+            owedToYou:
+              type: number
+            youOwe:
+              type: number
         byCurrency:
           type: array
           items:
@@ -543,6 +562,117 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+    patch:
+      summary: Update your profile and payment handles (null clears a handle)
+      operationId: updateCurrentUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                upiVpa:
+                  type: string
+                  nullable: true
+                paypalMe:
+                  type: string
+                  nullable: true
+                venmoHandle:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /payment-links:
+    get:
+      summary: Deep links for paying someone with the apps they accept
+      operationId: getPaymentLinks
+      parameters:
+      - name: payeeId
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: amount
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: currency
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: note
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Links for the payee's saved payment apps
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [payee, links]
+                properties:
+                  payee:
+                    type: object
+                    required: [id, name]
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      name:
+                        type: string
+                  links:
+                    type: array
+                    items:
+                      type: object
+                      required: [method, label, url]
+                      properties:
+                        method:
+                          type: string
+                          enum: [UPI, PAYPAL, VENMO]
+                        label:
+                          type: string
+                        url:
+                          type: string
+  /fx/rates:
+    get:
+      summary: Latest exchange rates for a base currency
+      operationId: getFxRates
+      parameters:
+      - name: base
+        in: query
+        schema:
+          type: string
+          default: USD
+      responses:
+        '200':
+          description: Rates keyed by currency code
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [base, date, rates]
+                properties:
+                  base:
+                    type: string
+                  date:
+                    type: string
+                  rates:
+                    type: object
+                    additionalProperties:
+                      type: number
   /users/{userId}:
     get:
       summary: Get a user by ID
@@ -1257,6 +1387,11 @@ paths:
         schema:
           type: string
           format: uuid
+      - name: convertTo
+        in: query
+        description: Also return all currencies summed in this one at the latest rate
+        schema:
+          type: string
       responses:
         '200':
           description: Balance summary

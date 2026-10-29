@@ -142,7 +142,14 @@ export interface IUsersRepository {
   }): Promise<any>;
   update(
     id: string,
-    data: Partial<{ name: string; avatarUrl: string; isRegistered: boolean }>,
+    data: Partial<{
+      name: string;
+      avatarUrl: string;
+      isRegistered: boolean;
+      upiVpa: string | null;
+      paypalMe: string | null;
+      venmoHandle: string | null;
+    }>,
   ): Promise<any>;
   /** True when both users belong to at least one common workspace (or are the same user). */
   sharesWorkspace(userA: string, userB: string): Promise<boolean>;

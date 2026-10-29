@@ -12,6 +12,7 @@ import {
   index,
   uniqueIndex,
   primaryKey,
+  date as pgDate,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
@@ -36,6 +37,10 @@ export const users = pgTable('users', {
   name: varchar('name', { length: 255 }).notNull(),
   avatarUrl: text('avatar_url'),
   isRegistered: boolean('is_registered').default(true).notNull(),
+  /** Where friends can pay this person. Optional; shown to people who share a workspace. */
+  upiVpa: varchar('upi_vpa', { length: 320 }),
+  paypalMe: varchar('paypal_me', { length: 64 }),
+  venmoHandle: varchar('venmo_handle', { length: 64 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -223,6 +228,19 @@ export const idempotencyKeys = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.key] })],
+);
+
+/** Latest exchange rate per currency pair, refreshed from a rate provider at most twice a day. */
+export const fxRates = pgTable(
+  'fx_rates',
+  {
+    base: varchar('base', { length: 3 }).notNull(),
+    quote: varchar('quote', { length: 3 }).notNull(),
+    rate: decimal('rate', { precision: 18, scale: 8 }).notNull(),
+    rateDate: pgDate('rate_date').notNull(),
+    fetchedAt: timestamp('fetched_at').defaultNow().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.base, t.quote] })],
 );
 
 // --- RELATIONS ---

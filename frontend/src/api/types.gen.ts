@@ -19,6 +19,9 @@ export type User = {
   email: string;
   name: string;
   avatarUrl?: string | null;
+  upiVpa?: string | null;
+  paypalMe?: string | null;
+  venmoHandle?: string | null;
 };
 
 export type Workspace = {
@@ -84,6 +87,14 @@ export type Settlement = {
 };
 
 export type Balance = {
+  /**
+   * Present when convertTo was requested
+   */
+  converted?: {
+    currency?: string;
+    owedToYou?: number;
+    youOwe?: number;
+  };
   byCurrency: Array<{
     currency: string;
     total: number;
@@ -223,6 +234,83 @@ export type GetCurrentUserResponses = {
 };
 
 export type GetCurrentUserResponse = GetCurrentUserResponses[keyof GetCurrentUserResponses];
+
+export type UpdateCurrentUserData = {
+  body: {
+    name?: string;
+    upiVpa?: string | null;
+    paypalMe?: string | null;
+    venmoHandle?: string | null;
+  };
+  path?: never;
+  query?: never;
+  url: '/users/me';
+};
+
+export type UpdateCurrentUserResponses = {
+  /**
+   * Updated user
+   */
+  200: User;
+};
+
+export type UpdateCurrentUserResponse =
+  UpdateCurrentUserResponses[keyof UpdateCurrentUserResponses];
+
+export type GetPaymentLinksData = {
+  body?: never;
+  path?: never;
+  query: {
+    payeeId: string;
+    amount: number;
+    currency: string;
+    note?: string;
+  };
+  url: '/payment-links';
+};
+
+export type GetPaymentLinksResponses = {
+  /**
+   * Links for the payee's saved payment apps
+   */
+  200: {
+    payee: {
+      id: string;
+      name: string;
+    };
+    links: Array<{
+      method: 'UPI' | 'PAYPAL' | 'VENMO';
+      label: string;
+      url: string;
+    }>;
+  };
+};
+
+export type GetPaymentLinksResponse = GetPaymentLinksResponses[keyof GetPaymentLinksResponses];
+
+export type GetFxRatesData = {
+  body?: never;
+  path?: never;
+  query?: {
+    base?: string;
+  };
+  url: '/fx/rates';
+};
+
+export type GetFxRatesResponses = {
+  /**
+   * Rates keyed by currency code
+   */
+  200: {
+    base: string;
+    date: string;
+    rates: {
+      [key: string]: number;
+    };
+  };
+};
+
+export type GetFxRatesResponse = GetFxRatesResponses[keyof GetFxRatesResponses];
 
 export type GetUserByIdData = {
   body?: never;
@@ -740,7 +828,12 @@ export type GetBalancesData = {
   path: {
     workspaceId: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Also return all currencies summed in this one at the latest rate
+     */
+    convertTo?: string;
+  };
   url: '/workspaces/{workspaceId}/balances';
 };
 

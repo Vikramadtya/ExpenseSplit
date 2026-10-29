@@ -1,5 +1,6 @@
 import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { IUsersRepositoryToken } from '../common/interfaces/repository.interfaces';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import type { IUsersRepository } from '../common/interfaces/repository.interfaces';
 
 @Injectable()
@@ -40,6 +41,10 @@ export class UsersService {
       name: defaultName,
       isRegistered: false,
     });
+  }
+
+  async updateProfile(id: string, data: UpdateProfileDto) {
+    return this.usersRepository.update(id, data);
   }
 
   async findByIds(ids: string[]) {

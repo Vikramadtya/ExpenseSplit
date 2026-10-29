@@ -4,6 +4,7 @@ import type { IBalancesRepository, NetBalance } from '../common/interfaces/repos
 import { UsersService } from '../users/users.service';
 import { DebtSimplificationAlgorithm, MinorDebt } from './algorithms/debt-simplification.algorithm';
 import { pairwiseDebts } from './algorithms/pairwise-debts';
+import { FxService } from '../fx/fx.service';
 
 const toMajorDebt = (d: MinorDebt, currency: string) => ({
   debtor: d.debtor,
@@ -29,10 +30,11 @@ export class BalancesService {
     @Inject(IBalancesRepositoryToken)
     private readonly repository: IBalancesRepository,
     private readonly usersService: UsersService,
+    private readonly fx: FxService,
   ) {}
 
   /** Balances of one workspace, or (with an empty id) of everything the user belongs to. */
-  async getBalances(workspaceId: string, userId?: string) {
+  async getBalances(workspaceId: string, userId?: string, convertTo?: string) {
     const nets: NetBalance[] = workspaceId
       ? await this.repository.getNetBalances(workspaceId)
       : userId
@@ -52,7 +54,29 @@ export class BalancesService {
         perMember: workspaceId ? rows.map((r) => ({ userId: r.userId, net: r.net.toMajor() })) : [],
       };
     });
-    return { byCurrency };
+    return {
+      byCurrency,
+      converted: convertTo ? await this.convert(byCurrency, convertTo) : undefined,
+    };
+  }
+
+  /** Sums every currency into one, at the latest exchange rate. */
+  private async convert(
+    rows: { currency: string; owedToYou: number; youOwe: number }[],
+    to: string,
+  ) {
+    const target = to.toUpperCase();
+    let owedToYou = 0;
+    let youOwe = 0;
+    for (const row of rows) {
+      owedToYou += await this.fx.convertMinor(
+        Math.round(row.owedToYou * 100),
+        row.currency,
+        target,
+      );
+      youOwe += await this.fx.convertMinor(Math.round(row.youOwe * 100), row.currency, target);
+    }
+    return { currency: target, owedToYou: owedToYou / 100, youOwe: youOwe / 100 };
   }
 
   async getDebts(workspaceId: string, simplified = true) {

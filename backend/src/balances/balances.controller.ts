@@ -6,13 +6,17 @@ export class BalancesController {
   constructor(private readonly balancesService: BalancesService) {}
 
   @Get('workspaces/:workspaceId/balances')
-  getBalances(@Param('workspaceId') workspaceId: string, @Req() req: any) {
-    return this.balancesService.getBalances(workspaceId, req.user.id);
+  getBalances(
+    @Param('workspaceId') workspaceId: string,
+    @Req() req: any,
+    @Query('convertTo') convertTo?: string,
+  ) {
+    return this.balancesService.getBalances(workspaceId, req.user.id, convertTo);
   }
 
   @Get('balances')
-  getGlobalBalances(@Req() req: any) {
-    return this.balancesService.getBalances('', req.user.id);
+  getGlobalBalances(@Req() req: any, @Query('convertTo') convertTo?: string) {
+    return this.balancesService.getBalances('', req.user.id, convertTo);
   }
 
   @Get('workspaces/:workspaceId/balances/debts')

@@ -6,8 +6,9 @@ import http from 'node:http';
 import { AppModule } from '../src/app.module';
 import { DRIZZLE_CLIENT } from '../src/database/database.module';
 import type { DrizzleDb } from '../src/database/database.module';
-import { refreshTokens, users } from '../src/database/schema';
+import { fxRates, refreshTokens, users } from '../src/database/schema';
 import { AuthService } from '../src/auth/auth.service';
+import { FxRateProvider } from '../src/fx/fx.provider';
 import { eq } from 'drizzle-orm';
 
 // Runs against a real, migrated Postgres. Skipped unless TEST_DATABASE_URL is set.
@@ -44,7 +45,16 @@ suite('ExpenseSplit API (integration)', () => {
     process.env.JWT_SECRET = 'test-secret';
     process.env.THROTTLE_LIMIT = '100000';
     process.env.FRONTEND_URL = 'http://localhost:5173';
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      // Never hit the real exchange-rate service from tests.
+      .overrideProvider(FxRateProvider)
+      .useValue({
+        fetchLatest: async (base: string) => ({
+          date: '2026-10-29',
+          rates: base === 'INR' ? { USD: 0.0125 } : { EUR: 0.5, INR: 80 },
+        }),
+      })
+      .compile();
     app = moduleRef.createNestApplication();
     await app.init();
     jwt = moduleRef.get(JwtService);
@@ -552,6 +562,90 @@ suite('ExpenseSplit API (integration)', () => {
       expect(text).toContain('event: expense.created');
       expect(text).toContain(`"workspaceId":"${ws2}"`);
       stream.destroy();
+    });
+  });
+
+  describe('money across currencies and payment links', () => {
+    let trip: string;
+    beforeAll(async () => {
+      await db.delete(fxRates); // start from an empty rate cache so the fake provider is used
+      trip = (await api('post', '/workspaces', alice).send({ name: 'Trip abroad' })).body.id;
+      await api('post', `/workspaces/${trip}/members`, alice).send({
+        email: `bob-${tag}@test.dev`,
+      });
+      for (const [description, amount, currency] of [
+        ['Hotel', 100, 'USD'],
+        ['Taxi', 400, 'INR'],
+      ] as const) {
+        await api('post', `/workspaces/${trip}/expenses`, alice)
+          .send({
+            description,
+            amount,
+            currency,
+            date: new Date().toISOString(),
+            payers: [{ userId: alice.id, amount }],
+            participants: [alice.id, bob.id],
+          })
+          .expect(201);
+      }
+    });
+
+    it('keeps each currency separate, and converts on request', async () => {
+      const plain = await api('get', `/workspaces/${trip}/balances`, alice).expect(200);
+      const owed = Object.fromEntries(
+        plain.body.byCurrency.map((c: { currency: string; owedToYou: number }) => [
+          c.currency,
+          c.owedToYou,
+        ]),
+      );
+      expect(owed).toEqual({ USD: 50, INR: 200 });
+      expect(plain.body.converted).toBeUndefined();
+
+      // 50 USD + 200 INR at INR 80 per USD (provider is faked) = 52.50 USD
+      const converted = await api(
+        'get',
+        `/workspaces/${trip}/balances?convertTo=usd`,
+        alice,
+      ).expect(200);
+      expect(converted.body.converted).toEqual({ currency: 'USD', owedToYou: 52.5, youOwe: 0 });
+    });
+
+    it('serves exchange rates', async () => {
+      const res = await api('get', '/fx/rates?base=USD', alice).expect(200);
+      expect(res.body).toEqual({ base: 'USD', date: '2026-10-29', rates: { EUR: 0.5, INR: 80 } });
+      await api('get', '/fx/rates?base=nope', alice).expect(400);
+    });
+
+    it('builds payment links from the payee’s saved handles', async () => {
+      await api('patch', '/users/me', alice)
+        .send({ upiVpa: 'alice@okbank', paypalMe: 'alicep' })
+        .expect(200);
+      await api('patch', '/users/me', alice).send({ upiVpa: 'not a vpa' }).expect(400);
+
+      const inr = await api(
+        'get',
+        `/payment-links?payeeId=${alice.id}&amount=200&currency=INR&note=Taxi`,
+        bob,
+      ).expect(200);
+      expect(inr.body.links.map((l: { method: string }) => l.method)).toEqual(['UPI', 'PAYPAL']);
+      expect(inr.body.links[0].url).toBe(
+        'upi://pay?pa=alice%40okbank&pn=alice&am=200.00&cu=INR&tn=Taxi',
+      );
+
+      const usd = await api(
+        'get',
+        `/payment-links?payeeId=${alice.id}&amount=50&currency=USD`,
+        bob,
+      ).expect(200);
+      expect(usd.body.links.map((l: { method: string }) => l.method)).toEqual(['PAYPAL']);
+
+      // Handles clear with null, and strangers can't look anyone up.
+      await api('patch', '/users/me', alice).send({ upiVpa: null, paypalMe: null }).expect(200);
+      expect(
+        (await api('get', `/payment-links?payeeId=${alice.id}&amount=5&currency=INR`, bob)).body
+          .links,
+      ).toEqual([]);
+      await api('get', `/payment-links?payeeId=${alice.id}&amount=5&currency=INR`, eve).expect(404);
     });
   });
 });

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { PaymentLinks } from '../../payments/PaymentLinks';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getDebtsOptions,
@@ -170,6 +171,12 @@ export const DebtSimplificationPanel: React.FC<Props> = ({ workspaceId }) => {
                 Full amount: {formatCurrency(confirmDebt.amount, confirmDebt.currency || 'USD')}
               </p>
             </div>
+
+            <PaymentLinks
+              payeeId={confirmDebt.creditor}
+              amount={parseFloat(settleAmount) || 0}
+              currency={confirmDebt.currency || 'USD'}
+            />
 
             <div className="flex justify-end gap-3">
               <button

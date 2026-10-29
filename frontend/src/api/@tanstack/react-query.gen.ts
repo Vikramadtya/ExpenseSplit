@@ -28,8 +28,10 @@ import {
   getDirectWorkspace,
   getExpense,
   getFriendsBalances,
+  getFxRates,
   getGlobalAnalytics,
   getGlobalBalances,
+  getPaymentLinks,
   getUserById,
   getWorkspace,
   getWorkspaceMembers,
@@ -44,6 +46,7 @@ import {
   removeMember,
   restoreExpense,
   revokeInvites,
+  updateCurrentUser,
   updateExpense,
   updateWorkspace,
 } from '../sdk.gen';
@@ -83,10 +86,14 @@ import type {
   GetExpenseResponse,
   GetFriendsBalancesData,
   GetFriendsBalancesResponse,
+  GetFxRatesData,
+  GetFxRatesResponse,
   GetGlobalAnalyticsData,
   GetGlobalAnalyticsResponse,
   GetGlobalBalancesData,
   GetGlobalBalancesResponse,
+  GetPaymentLinksData,
+  GetPaymentLinksResponse,
   GetUserByIdData,
   GetUserByIdResponse,
   GetWorkspaceData,
@@ -113,6 +120,8 @@ import type {
   RestoreExpenseResponse,
   RevokeInvitesData,
   RevokeInvitesResponse,
+  UpdateCurrentUserData,
+  UpdateCurrentUserResponse,
   UpdateExpenseData,
   UpdateExpenseResponse,
   UpdateWorkspaceData,
@@ -226,6 +235,79 @@ export const getCurrentUserOptions = (options?: Options<GetCurrentUserData>) =>
       return data;
     },
     queryKey: getCurrentUserQueryKey(options),
+  });
+
+/**
+ * Update your profile and payment handles (null clears a handle)
+ */
+export const updateCurrentUserMutation = (
+  options?: Partial<Options<UpdateCurrentUserData>>,
+): UseMutationOptions<UpdateCurrentUserResponse, DefaultError, Options<UpdateCurrentUserData>> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateCurrentUserResponse,
+    DefaultError,
+    Options<UpdateCurrentUserData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateCurrentUser({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+export const getPaymentLinksQueryKey = (options: Options<GetPaymentLinksData>) =>
+  createQueryKey('getPaymentLinks', options);
+
+/**
+ * Deep links for paying someone with the apps they accept
+ */
+export const getPaymentLinksOptions = (options: Options<GetPaymentLinksData>) =>
+  queryOptions<
+    GetPaymentLinksResponse,
+    DefaultError,
+    GetPaymentLinksResponse,
+    ReturnType<typeof getPaymentLinksQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getPaymentLinks({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: getPaymentLinksQueryKey(options),
+  });
+
+export const getFxRatesQueryKey = (options?: Options<GetFxRatesData>) =>
+  createQueryKey('getFxRates', options);
+
+/**
+ * Latest exchange rates for a base currency
+ */
+export const getFxRatesOptions = (options?: Options<GetFxRatesData>) =>
+  queryOptions<
+    GetFxRatesResponse,
+    DefaultError,
+    GetFxRatesResponse,
+    ReturnType<typeof getFxRatesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await getFxRates({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: getFxRatesQueryKey(options),
   });
 
 export const getUserByIdQueryKey = (options: Options<GetUserByIdData>) =>

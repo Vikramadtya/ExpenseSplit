@@ -5,6 +5,7 @@ import {
   getDirectWorkspaceMutation,
 } from '../api/@tanstack/react-query.gen';
 import DashboardLayout from '../layouts/DashboardLayout';
+import { PaymentHandlesForm } from '../features/payments/PaymentHandlesForm';
 import { Users, CheckCircle2, Wallet, BookOpen } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { formatCurrency } from '../utils/currency';
@@ -51,6 +52,7 @@ export default function FriendsRoute() {
   return (
     <DashboardLayout>
       <div className="max-w-4xl mx-auto space-y-6">
+        <PaymentHandlesForm />
         <header className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-indigo-100 border border-indigo-200 rounded-lg flex items-center justify-center shadow-sm">

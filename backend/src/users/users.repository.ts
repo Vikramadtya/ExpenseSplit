@@ -42,10 +42,7 @@ export class UsersRepository implements IUsersRepository {
     return user;
   }
 
-  async update(
-    id: string,
-    data: Partial<{ name: string; avatarUrl: string; isRegistered: boolean }>,
-  ): Promise<any> {
+  async update(id: string, data: Parameters<IUsersRepository['update']>[1]): Promise<any> {
     const [user] = await this.db.update(users).set(data).where(eq(users.id, id)).returning();
     return user;
   }

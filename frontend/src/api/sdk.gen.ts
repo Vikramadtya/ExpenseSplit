@@ -39,10 +39,14 @@ import type {
   GetExpenseResponses,
   GetFriendsBalancesData,
   GetFriendsBalancesResponses,
+  GetFxRatesData,
+  GetFxRatesResponses,
   GetGlobalAnalyticsData,
   GetGlobalAnalyticsResponses,
   GetGlobalBalancesData,
   GetGlobalBalancesResponses,
+  GetPaymentLinksData,
+  GetPaymentLinksResponses,
   GetUserByIdData,
   GetUserByIdResponses,
   GetWorkspaceData,
@@ -69,6 +73,8 @@ import type {
   RestoreExpenseResponses,
   RevokeInvitesData,
   RevokeInvitesResponses,
+  UpdateCurrentUserData,
+  UpdateCurrentUserResponses,
   UpdateExpenseData,
   UpdateExpenseResponses,
   UpdateWorkspaceData,
@@ -148,6 +154,64 @@ export const getCurrentUser = <ThrowOnError extends boolean = false>(
       },
     ],
     url: '/users/me',
+    ...options,
+  });
+
+/**
+ * Update your profile and payment handles (null clears a handle)
+ */
+export const updateCurrentUser = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateCurrentUserData, ThrowOnError>,
+): RequestResult<UpdateCurrentUserResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).patch<UpdateCurrentUserResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/users/me',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Deep links for paying someone with the apps they accept
+ */
+export const getPaymentLinks = <ThrowOnError extends boolean = false>(
+  options: Options<GetPaymentLinksData, ThrowOnError>,
+): RequestResult<GetPaymentLinksResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).get<GetPaymentLinksResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/payment-links',
+    ...options,
+  });
+
+/**
+ * Latest exchange rates for a base currency
+ */
+export const getFxRates = <ThrowOnError extends boolean = false>(
+  options?: Options<GetFxRatesData, ThrowOnError>,
+): RequestResult<GetFxRatesResponses, unknown, ThrowOnError> =>
+  (options?.client ?? client).get<GetFxRatesResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/fx/rates',
     ...options,
   });
 

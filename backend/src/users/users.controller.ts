@@ -1,4 +1,5 @@
-import { Controller, Get, Param, ParseUUIDPipe, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Req } from '@nestjs/common';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UsersService } from './users.service';
 
 @Controller('api/v1')
@@ -15,6 +16,11 @@ export class UsersController {
     } catch (e) {
       return req.user;
     }
+  }
+
+  @Patch('users/me')
+  async updateMe(@Body() dto: UpdateProfileDto, @Req() req: any) {
+    return this.usersService.updateProfile(req.user.id, dto);
   }
 
   @Get('users/:id')
