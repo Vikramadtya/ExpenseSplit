@@ -4,6 +4,7 @@ import { EqualSplitStrategy } from './equal-split.strategy';
 import { ExactSplitStrategy } from './exact-split.strategy';
 import { PercentageSplitStrategy } from './percentage-split.strategy';
 import { SharesSplitStrategy } from './shares-split.strategy';
+import { ItemizedSplitStrategy } from './itemized-split.strategy';
 import { SplitStrategyRegistry } from './split-strategy.registry';
 
 const usd = (amount: number) => Money.fromMajor(amount, 'USD');
@@ -78,5 +79,47 @@ describe('split strategies', () => {
     const registry = new SplitStrategyRegistry([new EqualSplitStrategy()]);
     expect(registry.get('EQUAL').type).toBe('EQUAL');
     expect(() => registry.get('SHARES')).toThrow(BadRequestException);
+  });
+});
+
+describe('ItemizedSplitStrategy', () => {
+  const strategy = new ItemizedSplitStrategy();
+  const owed = (r: { userId: string; owed: Money }[]) =>
+    Object.fromEntries(r.map((x) => [x.userId, x.owed.minor]));
+
+  it('splits shared items equally and gives tax and tip in proportion to each subtotal', () => {
+    // a: pasta 20 + half of the 10 starter = 25; b: salad 10 + half = 15. Subtotal 40, tax 4, tip 6.
+    const r = strategy.allocate(usd(50), {
+      items: [
+        { name: 'Pasta', amount: 20, assignees: ['a'] },
+        { name: 'Salad', amount: 10, assignees: ['b'] },
+        { name: 'Starter', amount: 10, assignees: ['a', 'b'] },
+      ],
+      tax: 4,
+      tip: 6,
+    });
+    // extras 10 split 25:15 => a 6.25, b 3.75
+    expect(owed(r)).toEqual({ a: 3125, b: 1875 });
+    expect(r.reduce((s, x) => s + x.owed.minor, 0)).toBe(5000);
+  });
+
+  it('never loses a cent on awkward splits', () => {
+    const r = strategy.allocate(usd(10.01), {
+      items: [{ name: 'Shared', amount: 10.01, assignees: ['a', 'b', 'c'] }],
+    });
+    expect(r.reduce((s, x) => s + x.owed.minor, 0)).toBe(1001);
+    expect(Object.values(owed(r)).sort()).toEqual([333, 334, 334]);
+  });
+
+  it('rejects totals that do not match, unassigned items and duplicate assignees', () => {
+    const base = { items: [{ name: 'Tea', amount: 5, assignees: ['a'] }] };
+    expect(() => strategy.allocate(usd(6), base)).toThrow(BadRequestException);
+    expect(() =>
+      strategy.allocate(usd(5), { items: [{ name: 'Tea', amount: 5, assignees: [] }] }),
+    ).toThrow(BadRequestException);
+    expect(() =>
+      strategy.allocate(usd(5), { items: [{ name: 'Tea', amount: 5, assignees: ['a', 'a'] }] }),
+    ).toThrow(BadRequestException);
+    expect(() => strategy.allocate(usd(5), {})).toThrow(BadRequestException);
   });
 });

@@ -24,6 +24,7 @@ import { FxModule } from './fx/fx.module';
 import { PaymentsModule } from './payments/payments.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { RecurringModule } from './recurring/recurring.module';
+import { ReceiptsModule } from './receipts/receipts.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { WorkspaceMemberGuard } from './auth/guards/workspace-member.guard';
 import { MetricsController } from './common/metrics.controller';
@@ -61,6 +62,7 @@ import { MetricsController } from './common/metrics.controller';
     PaymentsModule,
     NotificationsModule,
     RecurringModule,
+    ReceiptsModule,
   ],
   controllers: [AppController],
   providers: [

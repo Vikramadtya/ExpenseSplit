@@ -180,6 +180,51 @@ components:
               type: number
             currency:
               type: string
+    Receipt:
+      type: object
+      required: [id, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [PROCESSING, DONE, FAILED]
+        error:
+          type: string
+          nullable: true
+        result:
+          type: object
+          nullable: true
+          properties:
+            merchant:
+              type: string
+              nullable: true
+            date:
+              type: string
+              nullable: true
+            currency:
+              type: string
+              nullable: true
+            items:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  amount:
+                    type: number
+            tax:
+              type: number
+            tip:
+              type: number
+            total:
+              type: number
+            mismatch:
+              type: boolean
+            suggestedCategory:
+              type: string
     Expense:
       type: object
       required:
@@ -215,6 +260,7 @@ components:
           - EXACT
           - PERCENTAGE
           - SHARES
+          - ITEMIZED
         paidBy:
           type: string
           format: uuid
@@ -498,6 +544,7 @@ components:
           - EXACT
           - PERCENTAGE
           - SHARES
+          - ITEMIZED
         groupId:
           type: string
           format: uuid
@@ -1017,6 +1064,7 @@ paths:
                   - EXACT
                   - PERCENTAGE
                   - SHARES
+                  - ITEMIZED
                   default: EQUAL
                 payers:
                   type: array
@@ -1088,6 +1136,29 @@ paths:
                         format: uuid
                       shares:
                         type: number
+                category:
+                  type: string
+                  description: One of the built-in categories; unknown values become Other
+                items:
+                  type: array
+                  description: ITEMIZED only. Each line is split between its assignees.
+                  items:
+                    type: object
+                    required: [name, amount, assignees]
+                    properties:
+                      name:
+                        type: string
+                      amount:
+                        type: number
+                      assignees:
+                        type: array
+                        items:
+                          type: string
+                          format: uuid
+                tax:
+                  type: number
+                tip:
+                  type: number
                 currency:
                   type: string
                   default: USD
@@ -1147,6 +1218,7 @@ paths:
                   - EXACT
                   - PERCENTAGE
                   - SHARES
+                  - ITEMIZED
                 payers:
                   type: array
                   items:
@@ -1726,6 +1798,63 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RecurringRule'
+  /workspaces/{workspaceId}/receipts:
+    post:
+      summary: Upload a receipt photo (raw image bytes); it is scanned in the background
+      operationId: uploadReceipt
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/webp:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '202':
+          description: Accepted; poll the receipt until it is DONE or FAILED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Receipt'
+  /workspaces/{workspaceId}/receipts/{receiptId}:
+    get:
+      summary: A receipt and what the scanner read from it
+      operationId: getReceipt
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: receiptId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Receipt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Receipt'
   /workspaces/{workspaceId}/balances:
     get:
       summary: Get net balances for a workspace

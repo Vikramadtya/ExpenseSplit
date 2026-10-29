@@ -65,7 +65,7 @@ export function PaymentHandlesForm() {
               value={values[f.key]}
               onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
               placeholder={f.placeholder}
-              className="input-field mt-1"
+              className="input-field mt-1 block w-full"
             />
           </label>
         ))}

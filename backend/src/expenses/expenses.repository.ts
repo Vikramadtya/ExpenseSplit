@@ -20,7 +20,7 @@ export class ExpensesRepository implements IExpensesRepository {
   constructor(@Inject(DRIZZLE_CLIENT) private readonly db: DrizzleDb) {}
 
   async findPage(workspaceId: string, filter: ExpenseFilter): Promise<any[]> {
-    const { q, tags, currency, from, to, after, limit } = filter;
+    const { q, tags, currency, category, from, to, after, limit } = filter;
     return this.db.query.expenses.findMany({
       where: and(
         eq(expenses.workspaceId, workspaceId),
@@ -28,6 +28,7 @@ export class ExpensesRepository implements IExpensesRepository {
         q ? ilike(expenses.description, `%${escapeLike(q)}%`) : undefined,
         tags?.length ? arrayOverlaps(expenses.tags, tags) : undefined,
         currency ? eq(expenses.currency, currency) : undefined,
+        category ? eq(expenses.category, category) : undefined,
         from ? gte(expenses.date, from) : undefined,
         to ? lte(expenses.date, to) : undefined,
         // Keyset pagination: matches the (workspace_id, date DESC, id DESC) index.

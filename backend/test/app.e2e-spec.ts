@@ -9,12 +9,38 @@ import type { DrizzleDb } from '../src/database/database.module';
 import { fxRates, refreshTokens, users } from '../src/database/schema';
 import { AuthService } from '../src/auth/auth.service';
 import { RecurringService } from '../src/recurring/recurring.service';
+import { OcrProvider } from '../src/receipts/ocr.provider';
+import { configureApp } from '../src/app.setup';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { FxRateProvider } from '../src/fx/fx.provider';
 import { eq } from 'drizzle-orm';
 
 // Runs against a real, migrated Postgres. Skipped unless TEST_DATABASE_URL is set.
 const url = process.env.TEST_DATABASE_URL;
 const suite = url ? describe : describe.skip;
+
+const fakeOcr = {
+  available: true,
+  extract: jest.fn(async (bytes: Buffer) => {
+    if (bytes.includes(Buffer.from('FAIL'))) throw new Error('unreadable receipt');
+    return {
+      merchant: 'Joe’s Pizza Restaurant',
+      date: '2026-10-01',
+      currency: 'usd',
+      items: [
+        { name: 'Pasta', amount: 20 },
+        { name: 'Salad', amount: 10 },
+        { name: 'Starter', amount: 10 },
+      ],
+      tax: 4,
+      tip: 6,
+      total: 50,
+    };
+  }),
+};
 
 suite('ExpenseSplit API (integration)', () => {
   let app: INestApplication;
@@ -46,6 +72,7 @@ suite('ExpenseSplit API (integration)', () => {
     process.env.JWT_SECRET = 'test-secret';
     process.env.THROTTLE_LIMIT = '100000';
     process.env.DISABLE_SCHEDULERS = 'true'; // tests trigger runs themselves
+    process.env.RECEIPTS_DIR = mkdtempSync(join(tmpdir(), 'receipts-'));
     process.env.FRONTEND_URL = 'http://localhost:5173';
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       // Never hit the real exchange-rate service from tests.
@@ -56,8 +83,12 @@ suite('ExpenseSplit API (integration)', () => {
           rates: base === 'INR' ? { USD: 0.0125 } : { EUR: 0.5, INR: 80 },
         }),
       })
+      // A scripted scanner: the second receipt in a test run fails, to cover that path.
+      .overrideProvider(OcrProvider)
+      .useValue(fakeOcr)
       .compile();
-    app = moduleRef.createNestApplication();
+    app = moduleRef.createNestApplication<NestExpressApplication>();
+    configureApp(app as NestExpressApplication);
     await app.init();
     jwt = moduleRef.get(JwtService);
     db = moduleRef.get(DRIZZLE_CLIENT);
@@ -869,6 +900,186 @@ suite('ExpenseSplit API (integration)', () => {
         .send({ userId: alice.id })
         .expect(400);
       await api('post', `/workspaces/${flat2}/nudges`, eve).send({ userId: bob.id }).expect(404);
+    });
+  });
+
+  describe('receipts and itemized splits', () => {
+    let shop: string;
+    // 1x1 transparent PNG
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==',
+      'base64',
+    );
+    const upload = (as: { auth: object }, body: Buffer, type = 'image/png', ws = shop) =>
+      request(app.getHttpServer())
+        .post(`/api/v1/workspaces/${ws}/receipts`)
+        .set(as.auth as Record<string, string>)
+        .set('Content-Type', type)
+        .send(body);
+    const finished = async (as: { auth: object }, id: string) => {
+      for (let i = 0; i < 80; i++) {
+        const res = await api('get', `/workspaces/${shop}/receipts/${id}`, as);
+        if (res.body.status !== 'PROCESSING') return res.body;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      throw new Error('scan did not finish');
+    };
+
+    beforeAll(async () => {
+      shop = (await api('post', '/workspaces', alice).send({ name: 'Dinner out' })).body.id;
+      await api('post', `/workspaces/${shop}/members`, alice).send({
+        email: `bob-${tag}@test.dev`,
+      });
+    });
+
+    it('scans an uploaded receipt in the background and cleans the result up', async () => {
+      const accepted = await upload(alice, png).expect(202);
+      expect(accepted.body.status).toBe('PROCESSING');
+      const done = await finished(alice, accepted.body.id);
+      expect(done.status).toBe('DONE');
+      expect(done.result).toEqual(
+        expect.objectContaining({
+          merchant: 'Joe’s Pizza Restaurant',
+          currency: 'USD',
+          total: 50,
+          mismatch: false,
+          suggestedCategory: 'Food & Drink',
+        }),
+      );
+      expect(done.result.items).toHaveLength(3);
+    });
+
+    it('reports a scan that failed, so the user can enter items by hand', async () => {
+      const accepted = await upload(alice, Buffer.concat([png, Buffer.from('FAIL')])).expect(202);
+      const done = await finished(alice, accepted.body.id);
+      expect(done).toEqual(
+        expect.objectContaining({ status: 'FAILED', error: 'unreadable receipt' }),
+      );
+    });
+
+    it('checks the bytes, not the Content-Type, and rejects non-images', async () => {
+      await upload(alice, Buffer.from('<html><script>alert(1)</script></html>')).expect(400);
+      await upload(alice, png, 'text/plain').expect(415);
+      await upload(alice, Buffer.alloc(0)).expect(415);
+    });
+
+    it('keeps receipts private to the workspace', async () => {
+      const { body } = await upload(alice, png).expect(202);
+      await upload(eve, png).expect(404);
+      await api('get', `/workspaces/${shop}/receipts/${body.id}`, eve).expect(404);
+      await api('get', `/workspaces/${shop}/receipts/${body.id}/image`, eve).expect(404);
+
+      const image = await api('get', `/workspaces/${shop}/receipts/${body.id}/image`, bob).expect(
+        200,
+      );
+      expect(image.headers['content-type']).toBe('image/png');
+      expect(image.headers['x-content-type-options']).toBe('nosniff');
+      expect(Buffer.compare(image.body, png)).toBe(0);
+
+      // A receipt id from another workspace can't be read through this one.
+      await api('get', `/workspaces/${ws}/receipts/${body.id}`, alice).expect(404);
+    });
+
+    it('turns a scanned receipt into an itemized expense, with tax and tip shared fairly', async () => {
+      const res = await api('post', `/workspaces/${shop}/expenses`, alice)
+        .send({
+          description: 'Joe’s Pizza',
+          amount: 50,
+          category: 'Food & Drink',
+          date: new Date().toISOString(),
+          splitType: 'ITEMIZED',
+          payers: [{ userId: alice.id, amount: 50 }],
+          items: [
+            { name: 'Pasta', amount: 20, assignees: [alice.id] },
+            { name: 'Salad', amount: 10, assignees: [bob.id] },
+            { name: 'Starter', amount: 10, assignees: [alice.id, bob.id] },
+          ],
+          tax: 4,
+          tip: 6,
+        })
+        .expect(201);
+      expect(res.body.category).toBe('Food & Drink');
+      const owed = Object.fromEntries(
+        res.body.splits.map((s: { userId: string; amountOwed: string }) => [
+          s.userId,
+          Number(s.amountOwed),
+        ]),
+      );
+      expect(owed).toEqual({ [alice.id]: 31.25, [bob.id]: 18.75 });
+
+      // Items that don't add up to the total are refused, and editing keeps the items.
+      await api('post', `/workspaces/${shop}/expenses`, alice)
+        .send({
+          description: 'Wrong',
+          amount: 60,
+          date: new Date().toISOString(),
+          splitType: 'ITEMIZED',
+          payers: [{ userId: alice.id, amount: 60 }],
+          items: [{ name: 'Pasta', amount: 20, assignees: [alice.id] }],
+        })
+        .expect(400);
+      const edited = await api('patch', `/expenses/${res.body.id}`, alice)
+        .send({ description: 'Pizza night' })
+        .expect(200);
+      expect(edited.body.description).toBe('Pizza night');
+
+      const debts = await api('get', `/workspaces/${shop}/balances/debts`, bob).expect(200);
+      expect(debts.body).toEqual([
+        expect.objectContaining({ debtor: bob.id, creditor: alice.id, amount: 18.75 }),
+      ]);
+    });
+
+    it('filters expenses by category', async () => {
+      await api('post', `/workspaces/${shop}/expenses`, alice)
+        .send({
+          description: 'Taxi home',
+          amount: 12,
+          category: 'Transport',
+          date: new Date().toISOString(),
+          payers: [{ userId: alice.id, amount: 12 }],
+          participants: [alice.id, bob.id],
+        })
+        .expect(201);
+      const taxis = await api(
+        'get',
+        `/workspaces/${shop}/expenses?category=Transport`,
+        alice,
+      ).expect(200);
+      expect(taxis.body.map((e: { description: string }) => e.description)).toEqual(['Taxi home']);
+    });
+  });
+
+  describe('browser access (CORS)', () => {
+    // A header the server does not allow makes the browser drop the real request, and no
+    // server-side test can see that: so assert on the preflight itself.
+    it.each(['Idempotency-Key', 'Authorization', 'Content-Type'])(
+      'allows the web app to send %s',
+      async (header) => {
+        const res = await request(app.getHttpServer())
+          .options('/api/v1/workspaces/x/expenses')
+          .set('Origin', 'http://localhost:5173')
+          .set('Access-Control-Request-Method', 'POST')
+          .set('Access-Control-Request-Headers', header.toLowerCase())
+          .expect(204);
+        expect(res.headers['access-control-allow-headers'].toLowerCase()).toContain(
+          header.toLowerCase(),
+        );
+        expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5173');
+      },
+    );
+
+    it('lets the web app read the pagination cursor', async () => {
+      const res = await api('get', '/workspaces', alice).set('Origin', 'http://localhost:5173');
+      expect(res.headers['access-control-expose-headers']).toContain('x-next-cursor');
+    });
+
+    it('never echoes a foreign origin or a wildcard', async () => {
+      const res = await request(app.getHttpServer())
+        .options('/api/v1/workspaces')
+        .set('Origin', 'https://evil.example')
+        .set('Access-Control-Request-Method', 'GET');
+      // The browser compares this with the page's origin and blocks the mismatch.
+      expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5173');
     });
   });
 });

@@ -30,6 +30,7 @@ export interface ExpenseListQuery {
   q?: string;
   tags?: string;
   currency?: string;
+  category?: string;
   from?: string;
   to?: string;
   cursor?: string;
@@ -106,6 +107,7 @@ export class ExpensesService {
         description: data.description,
         amount: Money.fromMajor(data.amount, data.currency).toDecimal(),
         currency: data.currency,
+        category: data.category,
         date: new Date(data.date),
         splitType: data.splitType,
         type: data.type,
@@ -141,6 +143,7 @@ export class ExpensesService {
       q: query.q?.trim() || undefined,
       tags: query.tags?.split(',').filter(Boolean),
       currency: query.currency?.toUpperCase(),
+      category: query.category,
       from: query.from ? new Date(query.from) : undefined,
       to: query.to ? new Date(query.to) : undefined,
       after: query.cursor ? decodeCursor(query.cursor) : undefined,
@@ -171,6 +174,7 @@ export class ExpensesService {
     if (data.description !== undefined) patch.description = data.description;
     if (data.date !== undefined) patch.date = new Date(data.date);
     if (data.tags !== undefined) patch.tags = data.tags;
+    if (data.category !== undefined) patch.category = data.category;
 
     const affectsSplits = [
       data.amount,
@@ -182,6 +186,9 @@ export class ExpensesService {
       data.exactAmounts,
       data.percentages,
       data.shares,
+      data.items,
+      data.tax,
+      data.tip,
     ].some((v) => v !== undefined);
 
     let splits: NewSplit[] | null = null;
@@ -262,8 +269,8 @@ export class ExpensesService {
   }
 
   private extractSplitInput(data: SplitInput): SplitInput {
-    const { participants, exactAmounts, percentages, shares } = data;
-    return { participants, exactAmounts, percentages, shares };
+    const { participants, exactAmounts, percentages, shares, items, tax, tip } = data;
+    return { participants, exactAmounts, percentages, shares, items, tax, tip };
   }
 
   /** Overlays the requested changes on what is already stored. */

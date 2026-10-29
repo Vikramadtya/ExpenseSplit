@@ -11,6 +11,7 @@ import { EqualSplitStrategy } from './strategies/equal-split.strategy';
 import { ExactSplitStrategy } from './strategies/exact-split.strategy';
 import { PercentageSplitStrategy } from './strategies/percentage-split.strategy';
 import { SharesSplitStrategy } from './strategies/shares-split.strategy';
+import { ItemizedSplitStrategy } from './strategies/itemized-split.strategy';
 
 @Module({
   imports: [DatabaseModule, WorkspacesModule],
@@ -22,6 +23,7 @@ import { SharesSplitStrategy } from './strategies/shares-split.strategy';
     ExactSplitStrategy,
     PercentageSplitStrategy,
     SharesSplitStrategy,
+    ItemizedSplitStrategy,
     {
       provide: SPLIT_STRATEGIES,
       inject: [
@@ -29,6 +31,7 @@ import { SharesSplitStrategy } from './strategies/shares-split.strategy';
         ExactSplitStrategy,
         PercentageSplitStrategy,
         SharesSplitStrategy,
+        ItemizedSplitStrategy,
       ],
       useFactory: (...strategies: unknown[]) => strategies,
     },

@@ -4,13 +4,14 @@ import { useQuery } from '@tanstack/react-query';
 import { formatCurrency } from '../utils/currency';
 import { getWorkspaceOptions, getBalancesOptions } from '../api/@tanstack/react-query.gen';
 import DashboardLayout from '../layouts/DashboardLayout';
+import { ReceiptSplitModal } from '../features/expenses/components/ReceiptSplitModal';
 import { AddExpenseModal } from '../features/expenses/components/AddExpenseModal';
 import { EditExpenseModal } from '../features/expenses/components/EditExpenseModal';
 import { InviteMemberModal } from '../features/workspaces/components/InviteMemberModal';
 import { WorkspaceSettingsModal } from '../features/workspaces/components/WorkspaceSettingsModal';
 import { Settings } from 'lucide-react';
 import { DebtSimplificationPanel } from '../features/balances/components/DebtSimplificationPanel';
-import { Plus, UserPlus, BarChart2, Users, Activity } from 'lucide-react';
+import { Receipt, Plus, UserPlus, BarChart2, Users, Activity } from 'lucide-react';
 import { RecentActivity } from '../features/workspaces/components/RecentActivity';
 
 export default function DashboardRoute({ workspaceId }: { workspaceId: string }) {
@@ -24,6 +25,7 @@ export default function DashboardRoute({ workspaceId }: { workspaceId: string })
   const balances = balancesData ?? { byCurrency: [] };
 
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
 
   // Quick add: press "n" anywhere that isn't a text field.
   useEffect(() => {
@@ -103,6 +105,13 @@ export default function DashboardRoute({ workspaceId }: { workspaceId: string })
           >
             <UserPlus className="w-4 h-4" />
             <span className="hidden sm:inline">Invite</span>
+          </button>
+          <button
+            onClick={() => setIsReceiptOpen(true)}
+            className="flex items-center gap-2 bg-surface border border-border text-text-muted hover:text-text-main font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+          >
+            <Receipt className="w-4 h-4" />
+            <span className="hidden sm:inline">Scan receipt</span>
           </button>
           <button
             onClick={() => setIsAddExpenseOpen(true)}
@@ -201,6 +210,11 @@ export default function DashboardRoute({ workspaceId }: { workspaceId: string })
       </div>
 
       {/* Modals */}
+      <ReceiptSplitModal
+        isOpen={isReceiptOpen}
+        onClose={() => setIsReceiptOpen(false)}
+        workspaceId={workspaceId}
+      />
       <AddExpenseModal
         isOpen={isAddExpenseOpen}
         onClose={() => setIsAddExpenseOpen(false)}

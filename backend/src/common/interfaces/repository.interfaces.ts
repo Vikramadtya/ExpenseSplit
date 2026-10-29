@@ -38,6 +38,7 @@ export interface NewExpense {
   description: string;
   amount: string;
   currency: string;
+  category: string;
   date: Date;
   splitType: SplitType;
   type: 'EXPENSE' | 'TRANSFER';
@@ -63,6 +64,7 @@ export interface ExpenseFilter {
   q?: string;
   tags?: string[];
   currency?: string;
+  category?: string;
   from?: Date;
   to?: Date;
   after?: { date: Date; id: string };

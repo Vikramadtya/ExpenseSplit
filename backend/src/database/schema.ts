@@ -20,7 +20,13 @@ import { relations, sql } from 'drizzle-orm';
 
 export const roleEnum = pgEnum('role', ['ADMIN', 'MEMBER']);
 export const workspaceTypeEnum = pgEnum('workspace_type', ['GROUP', 'DIRECT']);
-export const splitTypeEnum = pgEnum('split_type', ['EQUAL', 'EXACT', 'PERCENTAGE', 'SHARES']);
+export const splitTypeEnum = pgEnum('split_type', [
+  'EQUAL',
+  'EXACT',
+  'PERCENTAGE',
+  'SHARES',
+  'ITEMIZED',
+]);
 export const expenseTypeEnum = pgEnum('expense_type', ['EXPENSE', 'TRANSFER']);
 export const recurringIntervalEnum = pgEnum('recurring_interval', [
   'NONE',
@@ -128,6 +134,7 @@ export const expenses = pgTable(
     type: expenseTypeEnum('type').default('EXPENSE').notNull(),
     tags: text('tags').array(),
     currency: varchar('currency', { length: 3 }).notNull().default('USD'),
+    category: varchar('category', { length: 40 }).notNull().default('Other'),
     version: integer('version').notNull().default(1),
     splitInput: jsonb('split_input'),
     /** Soft delete: lets "Undo" restore the expense. Excluded from balances and lists. */
@@ -314,6 +321,29 @@ export const pushSubscriptions = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (t) => [uniqueIndex('push_subscriptions_endpoint_uq').on(t.endpoint)],
+);
+
+/** An uploaded receipt photo and what the scanner read from it. */
+export const receipts = pgTable(
+  'receipts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    uploadedById: uuid('uploaded_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    storageKey: varchar('storage_key', { length: 200 }).notNull(),
+    mimeType: varchar('mime_type', { length: 50 }).notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    /** PROCESSING -> DONE | FAILED */
+    status: varchar('status', { length: 12 }).notNull().default('PROCESSING'),
+    result: jsonb('result'),
+    error: varchar('error', { length: 300 }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [index('receipts_workspace_idx').on(t.workspaceId, t.createdAt)],
 );
 
 // --- RELATIONS ---
