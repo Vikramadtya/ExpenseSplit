@@ -61,15 +61,20 @@ Schema changes go through reviewed SQL migrations:
 
 `0000_baseline.sql` recreates the schema as it stood before migrations were adopted. A database that
 already has those tables must be told the baseline is applied, otherwise `db:migrate` fails with
-"relation already exists". Run once against that database, then use `db:migrate` as normal:
+"relation already exists" (or, if migrations never ran, the app fails with errors like
+`Failed query: select ... "upi_vpa" ... from "users"` because newer columns are missing).
 
-```sql
-CREATE SCHEMA IF NOT EXISTS drizzle;
-CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint);
+From your machine, with the production `DATABASE_URL` (Neon connection string):
+
+```bash
+cd backend
+DATABASE_URL='postgresql://...' npm run db:baseline            # dry run: shows what it will do
+DATABASE_URL='postgresql://...' npm run db:baseline -- --apply  # records the baseline
+DATABASE_URL='postgresql://...' npm run db:migrate              # applies everything newer
 ```
 
-and insert the baseline's hash/timestamp (the hash is the SHA-256 of `0000_baseline.sql`; the timestamp is the
-`when` of entry 0 in `backend/drizzle/meta/_journal.json`).
+The helper refuses to act unless the baseline tables really exist, and is safe to run twice.
+Then redeploy or restart the backend.
 
 `0001_phase0_money_indexes.sql` removes duplicate `expense_splits` / `workspace_members` rows (keeping one per pair) before
 adding unique indexes. Take a Neon branch or backup before applying it to production.
