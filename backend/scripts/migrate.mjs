@@ -28,7 +28,11 @@ try {
   console.log(`${before} of ${total} migrations already applied.`);
   await migrate(drizzle(sql), { migrationsFolder: folder });
   const after = await applied();
-  console.log(after === total ? `Done: all ${total} migrations are applied.` : `Finished, but only ${after} of ${total} are recorded. Something is off.`);
+  console.log(
+    after === total
+      ? `Done: all ${total} migrations are applied.`
+      : `Finished, but only ${after} of ${total} are recorded. Something is off.`,
+  );
   process.exitCode = after === total ? 0 : 1;
 } catch (err) {
   console.error('\nMIGRATION FAILED (nothing from the failing migration was kept):');

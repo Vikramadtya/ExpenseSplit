@@ -25,34 +25,61 @@ const baseline = journal.entries[0];
 const sqlText = readFileSync(join(dir, `${baseline.tag}.sql`), 'utf8');
 // Same hash and timestamp drizzle itself records when it applies a migration.
 const hash = createHash('sha256').update(sqlText).digest('hex');
-const expectedTables = [...sqlText.matchAll(/CREATE TABLE "([a-z_]+)"/g)].map((m) => m[1]);
+// Every table in the baseline with its columns, read straight from the migration file.
+const expected = new Map(
+  [...sqlText.matchAll(/CREATE TABLE "([a-z_]+)" \(([\s\S]*?)\n\);/g)].map((m) => [
+    m[1],
+    [...m[2].matchAll(/^\s*"([a-z_]+)"\s/gm)].map((c) => c[1]),
+  ]),
+);
+const expectedTables = [...expected.keys()];
 
 const sql = postgres(url, { max: 1, onnotice: () => {} });
 try {
   const tables = new Set(
-    (await sql`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'`).map((r) => r.table_name),
+    (await sql`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'`).map(
+      (r) => r.table_name,
+    ),
   );
   const history = await sql`SELECT to_regclass('drizzle.__drizzle_migrations') AS t`;
 
   if (history[0].t) {
     const rows = await sql`SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations`;
     if (rows[0].n > 0) {
-      console.log(`Migration history already exists (${rows[0].n} applied). Nothing to do: run "npm run db:migrate".`);
+      console.log(
+        `Migration history already exists (${rows[0].n} applied). Nothing to do: run "npm run db:migrate".`,
+      );
       process.exit(0);
     }
   }
   if (!tables.has('users')) {
-    console.log('This database is empty (no tables). Nothing to baseline: run "npm run db:migrate" and it builds everything.');
+    console.log(
+      'This database is empty (no tables). Nothing to baseline: run "npm run db:migrate" and it builds everything.',
+    );
     process.exit(0);
   }
   const missing = expectedTables.filter((t) => !tables.has(t));
   if (missing.length > 0) {
     console.error(`Cannot baseline: these baseline tables are missing: ${missing.join(', ')}.`);
-    console.error('The database does not match the baseline schema, so marking it as applied would be wrong.');
+    console.error(
+      'The database does not match the baseline schema, so marking it as applied would be wrong.',
+    );
     process.exit(2);
   }
 
-  console.log(`Found the ${expectedTables.length} baseline tables but no migration history.`);
+  // Table names alone are not enough: an older database can have the same tables with fewer columns.
+  const present = await sql`SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public'`;
+  const have = new Set(present.map((r) => `${r.table_name}.${r.column_name}`));
+  const missingColumns = [...expected].flatMap(([table, cols]) => cols.filter((c) => !have.has(`${table}.${c}`)).map((c) => `${table}.${c}`));
+  if (missingColumns.length > 0) {
+    console.error('Cannot baseline: this database is OLDER than the baseline. Missing columns:');
+    for (const c of missingColumns) console.error(`  - ${c}`);
+    console.error('Marking the baseline as applied would hide that and the app would fail at runtime.');
+    console.error('Either bring the schema up to date by hand, or (if the data is disposable) start from an empty schema.');
+    process.exit(2);
+  }
+
+  console.log(`Found the ${expectedTables.length} baseline tables, with all their columns, but no migration history.`);
   console.log(`Will record ${baseline.tag} (${hash.slice(0, 12)}…) as already applied.`);
   if (!apply) {
     console.log('Dry run. Re-run with --apply to do it.');
