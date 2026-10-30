@@ -11,7 +11,8 @@ export class LoggingInterceptor implements NestInterceptor {
     const request = ctx.getRequest();
     const response = ctx.getResponse();
     const method = request.method;
-    const url = request.originalUrl;
+    // No query string: it can carry one-time OAuth codes, emails and search terms.
+    const url = String(request.originalUrl).split('?')[0];
     const userAgent = request.get('user-agent') || '';
     const ip = request.ip;
 
@@ -28,10 +29,8 @@ export class LoggingInterceptor implements NestInterceptor {
         error: (error) => {
           const delay = Date.now() - now;
           const status = error.getStatus ? error.getStatus() : 500;
-          this.logger.error(
-            `${method} ${url} ${status} - ${delay}ms - ${ip} - ${userAgent}`,
-            error.stack,
-          );
+          // The stack is logged by the exception filter (with the underlying database error).
+          this.logger.error(`${method} ${url} ${status} - ${delay}ms - ${ip} - ${userAgent}`);
         },
       }),
     );
