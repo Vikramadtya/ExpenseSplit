@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import { Currency } from '../common/money/currency';
 import { AnalyticsQueryDto } from './analytics-query.dto';
 import { AnalyticsRepository } from './analytics.repository';
 
-const num = (v: unknown) => Math.round(Number(v ?? 0) * 100) / 100;
+/** Rounds an aggregate to the currency's own decimals (0 for yen, 3 for dinars). */
+const money = (v: unknown, currency: string) => Currency.of(currency).round(Number(v ?? 0));
 const iso = (v: unknown) =>
   (v instanceof Date ? v : new Date(String(v))).toISOString().split('T')[0];
 
@@ -42,19 +44,19 @@ export class AnalyticsService {
       const currency = t.currency as string;
       const mine = forCurrency(data.mine, currency)[0];
       const settled = forCurrency(data.settlements, currency)[0];
-      const thisMonth = num(t.this_month);
-      const lastMonth = num(t.last_month);
+      const thisMonth = money(t.this_month, currency);
+      const lastMonth = money(t.last_month, currency);
 
       return {
         currency,
-        totalSpend: num(t.total),
+        totalSpend: money(t.total, currency),
         expenseCount: t.n as number,
         // Your own share of the spending, what you actually paid out, and payments between friends.
-        trueSpending: num(mine?.owed),
-        cashOut: num(mine?.paid),
-        received: num(settled?.received),
-        paid: num(settled?.paid),
-        todaySpend: num(t.today),
+        trueSpending: money(mine?.owed, currency),
+        cashOut: money(mine?.paid, currency),
+        received: money(settled?.received, currency),
+        paid: money(settled?.paid, currency),
+        todaySpend: money(t.today, currency),
         thisMonthSpend: thisMonth,
         lastMonthSpend: lastMonth,
         monthOverMonthChange:
@@ -62,21 +64,21 @@ export class AnalyticsService {
         spendByMember: forCurrency(data.members, currency).map((m) => ({
           userId: m.user_id as string,
           name: m.name as string,
-          amount: num(m.amount),
+          amount: money(m.amount, currency),
         })),
         spendOverTime: forCurrency(data.overTime, currency).map((r) => ({
           date: iso(r.bucket),
-          amount: num(r.total),
+          amount: money(r.total, currency),
         })),
         // Kept under its old name for existing clients: `description` is the category.
         topCategories: forCurrency(data.categories, currency).map((c) => ({
           description: c.category as string,
           count: c.n as number,
-          total: num(c.total),
+          total: money(c.total, currency),
         })),
         tagsAnalysis: forCurrency(data.tags, currency).map((r) => ({
           tag: r.tag as string,
-          total: num(r.total),
+          total: money(r.total, currency),
         })),
       };
     });

@@ -10,6 +10,7 @@ import {
 import { formatCurrency } from '../utils/currency';
 import { Search, Filter, ArrowUpDown, Pencil, Trash2 } from 'lucide-react';
 import { EditExpenseModal } from '../features/expenses/components/EditExpenseModal';
+import { CurrencySelect } from '../features/currency/CurrencySelect';
 import { DataTransferMenu } from '../features/data/DataTransferMenu';
 import { RecurringList } from '../features/recurring/RecurringList';
 import { useUiStore } from '../store/ui.store';
@@ -68,8 +69,6 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
   const editingExpenseId = useUiStore((state) => state.editingExpenseId);
   const setEditingExpenseId = useUiStore((state) => state.setEditingExpenseId);
 
-  // Hardcoded for UI dropdowns since we don't fetch metadata yet
-  const currencies = ['USD', 'EUR', 'GBP', 'INR', 'CAD', 'AUD'];
   const categories = Object.keys(CATEGORY_ICONS);
 
   const filtered = expenses; // Backend handles filtering and sorting now
@@ -135,18 +134,13 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
           <div className="flex w-full md:w-auto gap-3 overflow-x-auto pb-1 md:pb-0">
             <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-1.5 min-w-max">
               <Filter className="w-4 h-4 text-text-muted" />
-              <select
+              <CurrencySelect
                 value={filterCurrency}
-                onChange={(e) => setFilterCurrency(e.target.value)}
-                className="bg-transparent text-sm text-text-main focus:outline-none cursor-pointer"
-              >
-                <option value="ALL">All Currencies</option>
-                {currencies.map((c: any) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+                onChange={setFilterCurrency}
+                allLabel="All Currencies"
+                ariaLabel="Currency filter"
+                className="bg-transparent text-sm text-text-main focus:outline-none cursor-pointer max-w-[11rem]"
+              />
             </div>
 
             <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-1.5 min-w-max">

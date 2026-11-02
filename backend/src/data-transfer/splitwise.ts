@@ -1,4 +1,4 @@
-import { Money } from '../common/money/money';
+import { Currency, Money } from '../common/money/money';
 import { parseCsv } from './csv';
 
 export interface SplitwiseRow {
@@ -50,8 +50,8 @@ export function parseSplitwiseCsv(text: string): ParsedSplitwise {
       return void errors.push({ line, message: `Unreadable date "${date}"` });
     if (!Number.isFinite(amount) || amount <= 0)
       return void errors.push({ line, message: `Unreadable amount "${cost}"` });
-    if (!/^[A-Za-z]{3}$/.test(currency))
-      return void errors.push({ line, message: `Unreadable currency "${currency}"` });
+    if (!Currency.isValid(currency))
+      return void errors.push({ line, message: `Unreadable currency "${String(currency)}"` });
 
     const nets: Record<string, number> = {};
     members.forEach((name, col) => {
@@ -96,7 +96,8 @@ export function toExpenseShape(row: SplitwiseRow): ExpenseShape {
   const creditors = entries.filter((e) => e.net > 0);
   if (creditors.length === 0) throw new Error('Nobody is owed money in this row');
 
-  const paid = Money.fromMajor(row.cost, currency).allocate(creditors.map((c) => c.net / 100));
+  // Weights only need to be proportional, so the raw minor-unit nets work for any currency.
+  const paid = Money.fromMajor(row.cost, currency).allocate(creditors.map((c) => c.net));
   const paidByName = new Map(creditors.map((c, i) => [c.name, paid[i].minor]));
 
   const shape: ExpenseShape = { payers: [], owed: [] };
@@ -104,8 +105,10 @@ export function toExpenseShape(row: SplitwiseRow): ExpenseShape {
     const paidMinor = paidByName.get(name) ?? 0;
     const owedMinor = paidMinor - net;
     if (owedMinor < 0) throw new Error(`${name}'s balance is larger than the cost`);
-    if (paidMinor > 0) shape.payers.push({ name, amount: paidMinor / 100 });
-    if (owedMinor > 0) shape.owed.push({ name, amount: owedMinor / 100 });
+    if (paidMinor > 0)
+      shape.payers.push({ name, amount: Money.fromMinor(paidMinor, currency).toMajor() });
+    if (owedMinor > 0)
+      shape.owed.push({ name, amount: Money.fromMinor(owedMinor, currency).toMajor() });
   }
   return shape;
 }

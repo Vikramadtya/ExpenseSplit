@@ -1,11 +1,12 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
-import { APP_GUARD, APP_PIPE } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { PrometheusModule, makeHistogramProvider } from '@willsoto/nestjs-prometheus';
 import {
   HTTP_DURATION_METRIC,
   HttpMetricsMiddleware,
 } from './common/middleware/http-metrics.middleware';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -32,6 +33,7 @@ import { ReceiptsModule } from './receipts/receipts.module';
 import { BudgetsModule } from './budgets/budgets.module';
 import { DataTransferModule } from './data-transfer/data-transfer.module';
 import { AccountModule } from './account/account.module';
+import { CurrenciesModule } from './currencies/currencies.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { WorkspaceMemberGuard } from './auth/guards/workspace-member.guard';
 import { MetricsController } from './common/metrics.controller';
@@ -73,6 +75,7 @@ import { MetricsController } from './common/metrics.controller';
     BudgetsModule,
     DataTransferModule,
     AccountModule,
+    CurrenciesModule,
   ],
   controllers: [AppController],
   providers: [
@@ -84,6 +87,8 @@ import { MetricsController } from './common/metrics.controller';
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: WorkspaceMemberGuard },
     { provide: APP_PIPE, useClass: ZodValidationPipe },
+    // Registered here (not in main.ts) so the integration tests run the same error handling.
+    { provide: APP_FILTER, useClass: GlobalExceptionFilter },
     makeHistogramProvider({
       name: HTTP_DURATION_METRIC,
       help: 'HTTP request duration in seconds, by route template',

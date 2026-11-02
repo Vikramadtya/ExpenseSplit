@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { CurrencySelect } from '../../currency/CurrencySelect';
+import { formatCurrency, getCurrencySymbol, inputStep, sameAmount } from '../../../utils/currency';
 import { ALL_CATEGORIES } from '../../../utils/constants';
 type SplitType = 'EQUAL' | 'EXACT' | 'PERCENTAGE';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -10,7 +12,7 @@ import {
   createRecurringMutation,
 } from '../../../api/@tanstack/react-query.gen';
 
-import { X, Receipt, DollarSign, Calendar, User, Tag } from 'lucide-react';
+import { X, Receipt, Calendar, User, Tag } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -71,7 +73,7 @@ export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId 
       setTags([]);
       setTagInput('');
       setSplitType('EQUAL');
-      setCurrency('USD');
+      setCurrency(workspace?.defaultCurrency || 'USD');
       setIsMultiplePayers(false);
       setPayerAmounts({});
     }
@@ -103,9 +105,9 @@ export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId 
   };
 
   const payerSum = Object.values(payerAmounts).reduce((sum, amt) => sum + (amt || 0), 0);
-  const payerValid = !isMultiplePayers || Math.abs(payerSum - numAmount) < 0.01;
+  const payerValid = !isMultiplePayers || sameAmount(payerSum, numAmount, currency);
 
-  const exactValid = Math.abs(exactSum - numAmount) < 0.01;
+  const exactValid = sameAmount(exactSum, numAmount, currency);
   const percentValid = Math.abs(percentSum - 100) < 0.01;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -217,15 +219,19 @@ export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId 
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                   Amount
                 </label>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                <div className="flex gap-2">
+                  <CurrencySelect
+                    value={currency}
+                    onChange={setCurrency}
+                    className="w-28 shrink-0 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
                   <input
                     type="number"
-                    step="0.01"
-                    min="0.01"
+                    step={inputStep(currency)}
+                    min={inputStep(currency)}
                     value={amount}
                     onChange={(e) => setAmount(parseFloat(e.target.value) || '')}
-                    className="w-full rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                    className="w-full min-w-0 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                     required
                   />
                 </div>
@@ -375,10 +381,12 @@ export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId 
                         {m.name}
                       </span>
                       <div className="relative w-24">
-                        <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400" />
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 text-xs">
+                          {getCurrencySymbol(currency)}
+                        </span>
                         <input
                           type="number"
-                          step="0.01"
+                          step={inputStep(currency)}
                           min="0"
                           value={payerAmounts[m.id] || ''}
                           onChange={(e) => handlePayerAmountChange(m.id, e.target.value)}
@@ -391,7 +399,8 @@ export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId 
                   <div
                     className={`mt-2 text-xs p-2 rounded-md ${payerValid ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}
                   >
-                    Paid: ${payerSum.toFixed(2)} / ${numAmount.toFixed(2)} {payerValid ? '✓' : '✗'}
+                    Paid: {formatCurrency(payerSum, currency)} /{' '}
+                    {formatCurrency(numAmount, currency)} {payerValid ? '✓' : '✗'}
                   </div>
                 </div>
               )}
@@ -467,10 +476,12 @@ export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId 
 
                     {participants.includes(m.id) && splitType === 'EXACT' && (
                       <div className="relative w-24">
-                        <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400" />
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 text-xs">
+                          {getCurrencySymbol(currency)}
+                        </span>
                         <input
                           type="number"
-                          step="0.01"
+                          step={inputStep(currency)}
                           min="0"
                           value={exactAmounts[m.id] || ''}
                           onChange={(e) => handleExactAmountChange(m.id, e.target.value)}
@@ -505,7 +516,8 @@ export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId 
                 <div
                   className={`mt-3 text-sm p-2 rounded-lg ${exactValid ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}
                 >
-                  Sum: ${exactSum.toFixed(2)} / ${numAmount.toFixed(2)} {exactValid ? '✓' : '✗'}
+                  Sum: {formatCurrency(exactSum, currency)} / {formatCurrency(numAmount, currency)}{' '}
+                  {exactValid ? '✓' : '✗'}
                 </div>
               )}
               {splitType === 'PERCENTAGE' && participants.length > 0 && (

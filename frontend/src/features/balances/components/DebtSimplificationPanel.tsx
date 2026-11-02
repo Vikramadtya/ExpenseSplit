@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { BellRing } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getCurrentUserOptions, nudgeMemberMutation } from '../../../api/@tanstack/react-query.gen';
+import { getCurrencySymbol, inputStep } from '../../../utils/currency';
 import { PaymentLinks } from '../../payments/PaymentLinks';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -179,12 +180,12 @@ export const DebtSimplificationPanel: React.FC<Props> = ({ workspaceId }) => {
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <span className="text-text-muted sm:text-sm">
-                    {(confirmDebt.currency || 'USD') === 'USD' ? '$' : confirmDebt.currency}
+                    {getCurrencySymbol(confirmDebt.currency || 'USD')}
                   </span>
                 </div>
                 <input
                   type="number"
-                  step="0.01"
+                  step={inputStep(confirmDebt.currency || 'USD')}
                   min="0"
                   max={confirmDebt.amount}
                   className="input-field pl-12"

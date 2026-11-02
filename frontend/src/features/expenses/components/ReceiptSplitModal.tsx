@@ -10,7 +10,8 @@ import {
   getWorkspaceMembersOptions,
   getWorkspaceOptions,
 } from '../../../api/@tanstack/react-query.gen';
-import { formatCurrency } from '../../../utils/currency';
+import { formatCurrency, fromMinor, toMinor } from '../../../utils/currency';
+import { CurrencySelect } from '../../currency/CurrencySelect';
 
 interface Props {
   isOpen: boolean;
@@ -43,7 +44,6 @@ interface ReceiptResponse {
   error: string | null;
 }
 
-const cents = (value: string | number) => Math.round((Number(value) || 0) * 100);
 const authHeader = async () => ({ Authorization: `Bearer ${await getFreshAccessToken()}` });
 
 async function uploadReceipt(workspaceId: string, file: File): Promise<ReceiptResponse> {
@@ -105,11 +105,12 @@ export function ReceiptSplitModal({ isOpen, onClose, workspaceId }: Props) {
   const effectiveCurrency = currency || workspace?.defaultCurrency || 'USD';
   const payer = paidBy || me?.id || '';
 
-  const subtotal = lines.reduce((sum, l) => sum + cents(l.amount), 0);
-  const total = subtotal + cents(tax) + cents(tip);
+  const minor = (value: string | number) => toMinor(value, effectiveCurrency);
+  const subtotal = lines.reduce((sum, l) => sum + minor(l.amount), 0);
+  const total = subtotal + minor(tax) + minor(tip);
   const linesValid =
     lines.length > 0 &&
-    lines.every((l) => l.name.trim() && cents(l.amount) > 0 && l.assignees.length > 0);
+    lines.every((l) => l.name.trim() && minor(l.amount) > 0 && l.assignees.length > 0);
   const canSave = Boolean(description.trim() && linesValid && total > 0 && payer);
 
   const startManual = (message = '') => {
@@ -168,19 +169,19 @@ export function ReceiptSplitModal({ isOpen, onClose, workspaceId }: Props) {
       headers: { 'Idempotency-Key': crypto.randomUUID() },
       body: {
         description: description.trim(),
-        amount: total / 100,
+        amount: fromMinor(total, effectiveCurrency),
         currency: effectiveCurrency,
         category,
         date,
         splitType: 'ITEMIZED',
-        payers: [{ userId: payer, amount: total / 100 }],
+        payers: [{ userId: payer, amount: fromMinor(total, effectiveCurrency) }],
         items: lines.map((l) => ({
           name: l.name.trim(),
-          amount: cents(l.amount) / 100,
+          amount: fromMinor(minor(l.amount), effectiveCurrency),
           assignees: l.assignees,
         })),
-        tax: cents(tax) / 100,
-        tip: cents(tip) / 100,
+        tax: fromMinor(minor(tax), effectiveCurrency),
+        tip: fromMinor(minor(tip), effectiveCurrency),
       } as any,
     });
     queryClient.invalidateQueries();
@@ -266,6 +267,14 @@ export function ReceiptSplitModal({ isOpen, onClose, workspaceId }: Props) {
                   className="input-field mt-1 block w-full"
                   placeholder="Joe's Pizza"
                   required
+                />
+              </label>
+              <label className="text-sm text-zinc-600 dark:text-zinc-400">
+                Currency
+                <CurrencySelect
+                  value={effectiveCurrency}
+                  onChange={setCurrency}
+                  className="input-field mt-1 block w-full"
                 />
               </label>
               <label className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -373,7 +382,7 @@ export function ReceiptSplitModal({ isOpen, onClose, workspaceId }: Props) {
               <span className="text-sm text-zinc-600 dark:text-zinc-400">
                 Total{' '}
                 <strong className="text-zinc-900 dark:text-zinc-100">
-                  {formatCurrency(total / 100, effectiveCurrency)}
+                  {formatCurrency(fromMinor(total, effectiveCurrency), effectiveCurrency)}
                 </strong>
               </span>
               <div className="flex gap-2">

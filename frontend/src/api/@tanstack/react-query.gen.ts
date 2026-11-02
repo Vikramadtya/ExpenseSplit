@@ -44,6 +44,7 @@ import {
   inviteMember,
   leaveWorkspace,
   listBudgets,
+  listCurrencies,
   listExpenseComments,
   listNotifications,
   listRecurring,
@@ -136,6 +137,8 @@ import type {
   LeaveWorkspaceResponse,
   ListBudgetsData,
   ListBudgetsResponse,
+  ListCurrenciesData,
+  ListCurrenciesResponse,
   ListExpenseCommentsData,
   ListExpenseCommentsResponse,
   ListNotificationsData,
@@ -336,6 +339,31 @@ export const getPaymentLinksOptions = (options: Options<GetPaymentLinksData>) =>
       return data;
     },
     queryKey: getPaymentLinksQueryKey(options),
+  });
+
+export const listCurrenciesQueryKey = (options?: Options<ListCurrenciesData>) =>
+  createQueryKey('listCurrencies', options);
+
+/**
+ * Supported ISO 4217 currencies with their decimal places
+ */
+export const listCurrenciesOptions = (options?: Options<ListCurrenciesData>) =>
+  queryOptions<
+    ListCurrenciesResponse,
+    DefaultError,
+    ListCurrenciesResponse,
+    ReturnType<typeof listCurrenciesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listCurrencies({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: listCurrenciesQueryKey(options),
   });
 
 export const getFxRatesQueryKey = (options?: Options<GetFxRatesData>) =>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { SUPPORTED_CURRENCIES } from '../utils/currency';
+import { CurrencySelect } from '../features/currency/CurrencySelect';
 import { useAppStore } from '../store/app.store';
 import {
   getWorkspacesOptions,
@@ -73,17 +73,11 @@ function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
             <label className="text-xs font-semibold text-text-muted uppercase tracking-wider">
               Default Currency
             </label>
-            <select
+            <CurrencySelect
               value={defaultCurrency}
-              onChange={(e) => setDefaultCurrency(e.target.value)}
+              onChange={setDefaultCurrency}
               className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-            >
-              {SUPPORTED_CURRENCIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+            />
           </div>
           <div className="flex justify-end gap-3 pt-1">
             <button

@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { currencyCode } from '../common/money/currency-code.schema';
+
 import { Roles } from '../auth/decorators';
 import { CATEGORIES } from '../common/categories';
 import { BudgetsService } from './budgets.service';
@@ -18,10 +20,7 @@ import { BudgetsService } from './budgets.service';
 export class SetBudgetDto extends createZodDto(
   z.object({
     category: z.enum(['ALL', ...CATEGORIES]).default('ALL'),
-    currency: z
-      .string()
-      .regex(/^[A-Za-z]{3}$/)
-      .transform((c) => c.toUpperCase()),
+    currency: currencyCode,
     amount: z.number().finite().positive().max(9_999_999_999),
   }),
 ) {}

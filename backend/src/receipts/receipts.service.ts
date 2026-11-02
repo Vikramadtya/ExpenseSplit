@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { suggestCategory } from '../common/categories';
+import { Currency } from '../common/money/currency';
 import { EventBus } from '../common/events/event-bus';
 import { sniffImageType } from './image-type';
 import { OcrProvider } from './ocr.provider';
@@ -16,24 +17,30 @@ import { ReceiptRow, ReceiptsRepository } from './receipts.repository';
 
 /** Cleans up what the scanner returned and adds what the app can work out itself. */
 export function normalizeReceipt(data: ReceiptData) {
+  // Only trust a currency code that really is one; otherwise keep three decimals so no
+  // currency's precision is lost before the user picks the right one.
+  const currency = Currency.isValid(data.currency) ? Currency.of(data.currency) : null;
+  const round = (v: number) => (currency ? currency.round(v) : Math.round(v * 1000) / 1000);
+
   const items = data.items
-    .map((i) => ({ name: i.name.trim().slice(0, 200), amount: Math.round(i.amount * 100) / 100 }))
+    .map((i) => ({ name: i.name.trim().slice(0, 200), amount: round(i.amount) }))
     .filter((i) => i.name && Number.isFinite(i.amount) && i.amount > 0);
-  const tax = Math.max(data.tax ?? 0, 0);
-  const tip = Math.max(data.tip ?? 0, 0);
-  const computed = Math.round((items.reduce((s, i) => s + i.amount, 0) + tax + tip) * 100) / 100;
-  const total = data.total ?? computed;
+  const tax = Math.max(round(data.tax ?? 0), 0);
+  const tip = Math.max(round(data.tip ?? 0), 0);
+  const computed = round(items.reduce((s, i) => s + i.amount, 0) + tax + tip);
+  const total = data.total === null ? computed : round(data.total);
 
   return {
     merchant: data.merchant?.trim() || null,
     date: data.date,
-    currency: data.currency?.toUpperCase() ?? null,
+    currency: currency?.code ?? null,
     items,
     tax,
     tip,
     total,
     // The scan doesn't add up: the user should check the lines before saving.
-    mismatch: Math.abs(computed - total) > 0.01,
+    // Off by at least one minor unit of the currency (a cent, a yen, a fils).
+    mismatch: Math.abs(computed - total) >= 1 / (currency?.factor ?? 100),
     suggestedCategory: suggestCategory(data.merchant, ...items.map((i) => i.name)),
   };
 }

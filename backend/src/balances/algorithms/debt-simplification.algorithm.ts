@@ -16,6 +16,8 @@ export interface MinorDebt {
   minor: number;
 }
 
+import { Money } from '../../common/money/money';
+
 export class DebtSimplificationAlgorithm {
   /**
    * Minimises the number of payments needed to settle everyone, greedily matching the
@@ -46,17 +48,17 @@ export class DebtSimplificationAlgorithm {
   }
 
   /** Convenience for decimal debts: nets them out, then settles up. */
-  public simplifyDebts(debts: Debt[]): Debt[] {
+  public simplifyDebts(debts: Debt[], currency = 'USD'): Debt[] {
     const nets = new Map<string, number>();
     for (const d of debts) {
-      const minor = Math.round(d.amount * 100);
+      const minor = Money.fromMajorRounded(d.amount, currency).minor;
       nets.set(d.debtor, (nets.get(d.debtor) ?? 0) - minor);
       nets.set(d.creditor, (nets.get(d.creditor) ?? 0) + minor);
     }
     return this.settleUp([...nets].map(([id, minor]) => ({ id, minor }))).map((p) => ({
       debtor: p.debtor,
       creditor: p.creditor,
-      amount: p.minor / 100,
+      amount: Money.fromMinor(p.minor, currency).toMajor(),
     }));
   }
 }

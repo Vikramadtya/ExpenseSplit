@@ -5,11 +5,15 @@ import { UsersService } from '../users/users.service';
 import { DebtSimplificationAlgorithm, MinorDebt } from './algorithms/debt-simplification.algorithm';
 import { pairwiseDebts } from './algorithms/pairwise-debts';
 import { FxService } from '../fx/fx.service';
+import { Money } from '../common/money/money';
+
+/** Minor units to the plain number the API returns, using the currency's own decimals. */
+const major = (minor: number, currency: string) => Money.fromMinor(minor, currency).toMajor();
 
 const toMajorDebt = (d: MinorDebt, currency: string) => ({
   debtor: d.debtor,
   creditor: d.creditor,
-  amount: d.minor / 100,
+  amount: major(d.minor, currency),
   currency,
 });
 
@@ -48,35 +52,40 @@ export class BalancesService {
       const owed = rows.filter((r) => r.net.minor > 0).reduce((sum, r) => sum + r.net.minor, 0);
       return {
         currency,
-        total: owed / 100,
-        owedToYou: Math.max(mine, 0) / 100,
-        youOwe: Math.max(-mine, 0) / 100,
+        total: major(owed, currency),
+        owedToYou: major(Math.max(mine, 0), currency),
+        youOwe: major(Math.max(-mine, 0), currency),
         perMember: workspaceId ? rows.map((r) => ({ userId: r.userId, net: r.net.toMajor() })) : [],
+        // Kept in minor units for conversion, so nothing is rounded twice.
+        minor: { owedToYou: Math.max(mine, 0), youOwe: Math.max(-mine, 0) },
       };
     });
     return {
-      byCurrency,
+      byCurrency: byCurrency.map(({ minor: _minor, ...row }) => row),
       converted: convertTo ? await this.convert(byCurrency, convertTo) : undefined,
     };
   }
 
-  /** Sums every currency into one, at the latest exchange rate. */
+  /** Sums every currency into one, at the latest exchange rate, in whole units of the target currency. */
   private async convert(
-    rows: { currency: string; owedToYou: number; youOwe: number }[],
+    rows: { currency: string; minor: { owedToYou: number; youOwe: number } }[],
     to: string,
   ) {
-    const target = to.toUpperCase();
-    let owedToYou = 0;
-    let youOwe = 0;
+    let owedToYou = Money.zero(to);
+    let youOwe = Money.zero(to);
     for (const row of rows) {
-      owedToYou += await this.fx.convertMinor(
-        Math.round(row.owedToYou * 100),
-        row.currency,
-        target,
+      owedToYou = owedToYou.add(
+        await this.fx.convert(Money.fromMinor(row.minor.owedToYou, row.currency), to),
       );
-      youOwe += await this.fx.convertMinor(Math.round(row.youOwe * 100), row.currency, target);
+      youOwe = youOwe.add(
+        await this.fx.convert(Money.fromMinor(row.minor.youOwe, row.currency), to),
+      );
     }
-    return { currency: target, owedToYou: owedToYou / 100, youOwe: youOwe / 100 };
+    return {
+      currency: owedToYou.currency,
+      owedToYou: owedToYou.toMajor(),
+      youOwe: youOwe.toMajor(),
+    };
   }
 
   /**
@@ -171,7 +180,7 @@ export class BalancesService {
       userId: f.userId,
       name: profiles.get(f.userId)?.name ?? 'Unknown',
       avatarUrl: profiles.get(f.userId)?.avatarUrl ?? null,
-      netBalance: f.netBalance / 100,
+      netBalance: major(f.netBalance, f.currency),
       currency: f.currency,
     }));
   }

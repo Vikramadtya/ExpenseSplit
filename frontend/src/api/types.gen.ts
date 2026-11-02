@@ -355,6 +355,30 @@ export type GetPaymentLinksResponses = {
 
 export type GetPaymentLinksResponse = GetPaymentLinksResponses[keyof GetPaymentLinksResponses];
 
+export type ListCurrenciesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/currencies';
+};
+
+export type ListCurrenciesResponses = {
+  /**
+   * Currencies sorted by code
+   */
+  200: Array<{
+    code: string;
+    name: string;
+    symbol: string;
+    /**
+     * Decimal places in the minor unit (0 for yen, 2 for dollars, 3 for dinars)
+     */
+    exponent: number;
+  }>;
+};
+
+export type ListCurrenciesResponse = ListCurrenciesResponses[keyof ListCurrenciesResponses];
+
 export type GetFxRatesData = {
   body?: never;
   path?: never;
@@ -1436,6 +1460,7 @@ export type GetActivityResponses = {
     type?: 'EXPENSE' | 'SETTLEMENT';
     description?: string;
     amount?: number;
+    currency?: string;
     date?: string;
     actionBy?: string;
   }>;

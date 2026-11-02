@@ -57,7 +57,7 @@ export const RecentActivity: React.FC<{ workspaceId: string }> = ({ workspaceId 
           <div
             className={`font-bold ${item.type === 'EXPENSE' ? 'text-text-main' : 'text-emerald-600 dark:text-emerald-400'}`}
           >
-            {formatCurrency(item.amount, 'USD')}
+            {formatCurrency(item.amount, item.currency || 'USD')}
           </div>
         </div>
       ))}

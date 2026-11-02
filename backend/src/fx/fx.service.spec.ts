@@ -1,4 +1,5 @@
 import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import { InvalidMoneyError, Money } from '../common/money/money';
 import { FxService } from './fx.service';
 import { FxRateProvider } from './fx.provider';
 import { FxRepository } from './fx.repository';
@@ -50,10 +51,26 @@ describe('FxService', () => {
     await expect(service.getRates('USD')).rejects.toThrow(ServiceUnavailableException);
   });
 
-  it('converts minor units and rejects unknown currencies', async () => {
-    expect(await service.convertMinor(1000, 'USD', 'EUR')).toBe(900);
-    expect(await service.convertMinor(1000, 'USD', 'usd')).toBe(1000);
-    await expect(service.convertMinor(1000, 'USD', 'XXX')).rejects.toThrow(BadRequestException);
+  it('converts amounts into the target currency, honouring its decimal places', async () => {
+    repo.findByBase.mockResolvedValue([row('EUR', '0.9'), row('JPY', '150'), row('KWD', '0.307')]);
+    const ten = Money.fromMajor(10, 'USD');
+    expect((await service.convert(ten, 'EUR')).toDecimal()).toBe('9.00');
+    expect((await service.convert(ten, 'JPY')).toDecimal()).toBe('1500'); // yen have no cents
+    expect((await service.convert(ten, 'KWD')).toDecimal()).toBe('3.070'); // dinars have three decimals
+    expect((await service.convert(ten, 'jpy')).currency).toBe('JPY');
+  });
+
+  it('leaves an amount alone when it is already in the target currency', async () => {
+    const ten = Money.fromMajor(10, 'USD');
+    expect(await service.convert(ten, 'usd')).toBe(ten);
+    expect(provider.fetchLatest).not.toHaveBeenCalled();
+  });
+
+  it('rejects unknown currencies and currencies without a rate', async () => {
+    repo.findByBase.mockResolvedValue([row('EUR', '0.9')]);
+    const ten = Money.fromMajor(10, 'USD');
+    await expect(service.convert(ten, 'XYZ')).rejects.toThrow(InvalidMoneyError);
+    await expect(service.convert(ten, 'CHF')).rejects.toThrow(BadRequestException);
   });
 
   it('rejects malformed currency codes', async () => {

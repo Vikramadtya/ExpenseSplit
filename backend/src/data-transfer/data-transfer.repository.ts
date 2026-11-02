@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, gte, isNull, lte } from 'drizzle-orm';
+import { Money } from '../common/money/money';
 import { DRIZZLE_CLIENT } from '../database/database.module';
 import type { DrizzleDb } from '../database/database.module';
 import { expenses, settlements } from '../database/schema';
@@ -14,7 +15,7 @@ export const expenseKey = (
   amount: number | string,
   currency: string,
 ) =>
-  `E|${typeof date === 'string' ? date : day(date)}|${description.trim().toLowerCase()}|${Number(amount).toFixed(2)}|${currency}`;
+  `E|${typeof date === 'string' ? date : day(date)}|${description.trim().toLowerCase()}|${Money.fromMajorRounded(amount, currency).minor}|${currency}`;
 export const paymentKey = (
   date: Date | string,
   payerId: string,
@@ -22,7 +23,7 @@ export const paymentKey = (
   amount: number | string,
   currency: string,
 ) =>
-  `S|${typeof date === 'string' ? date : day(date)}|${payerId}|${payeeId}|${Number(amount).toFixed(2)}|${currency}`;
+  `S|${typeof date === 'string' ? date : day(date)}|${payerId}|${payeeId}|${Money.fromMajorRounded(amount, currency).minor}|${currency}`;
 
 @Injectable()
 export class DataTransferRepository {

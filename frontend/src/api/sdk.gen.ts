@@ -71,6 +71,8 @@ import type {
   LeaveWorkspaceResponses,
   ListBudgetsData,
   ListBudgetsResponses,
+  ListCurrenciesData,
+  ListCurrenciesResponses,
   ListExpenseCommentsData,
   ListExpenseCommentsResponses,
   ListNotificationsData,
@@ -231,6 +233,24 @@ export const getPaymentLinks = <ThrowOnError extends boolean = false>(
       },
     ],
     url: '/payment-links',
+    ...options,
+  });
+
+/**
+ * Supported ISO 4217 currencies with their decimal places
+ */
+export const listCurrencies = <ThrowOnError extends boolean = false>(
+  options?: Options<ListCurrenciesData, ThrowOnError>,
+): RequestResult<ListCurrenciesResponses, unknown, ThrowOnError> =>
+  (options?.client ?? client).get<ListCurrenciesResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/currencies',
     ...options,
   });
 

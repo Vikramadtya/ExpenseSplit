@@ -41,7 +41,7 @@ process (`scripts/bench.mjs`). Production numbers will differ with network and d
 
 Decisions that differ from the original plan are listed after the phase table in earlier revisions
 of this document and in the commit history: no `member_balances` table (indexed aggregate instead),
-amounts stay `numeric(12,2)` and become integer cents in `Money`, no ADJUSTMENT split type, Express
+money is held as integer minor units whose number of decimals comes from the currency's ISO 4217 exponent (JPY 0, USD 2, KWD 3), with `numeric(16,4)` columns so nothing is rounded on its way to the database, no ADJUSTMENT split type, Express
 rather than Fastify, and no Row-Level Security (access is enforced and tested in the app layer).
 
 ## 1. Where the code stands today (before Phase 0)
@@ -295,3 +295,15 @@ OpenAPI stays the contract: edit `openapi.yaml` → regenerate the client → CI
 | Redis host | Upstash (serverless, works with BullMQ and pub/sub) |
 | RLS | Remove; enforce in the app layer and back it with tests |
 | Backend hosting | Render paid instance (no cold starts), or Fly.io |
+
+### Currency handling
+
+- `Currency` (ISO 4217 code, decimal places, name, symbol) is read from the runtime's standards data
+  (Intl/CLDR) rather than a hand-kept table; `GET /currencies` serves it to clients.
+- `Money` stores integer minor units and takes its precision from the currency. Amounts with too many
+  decimals (`10.5 JPY`, `1.234 USD`) are rejected with a 400, never silently rounded. Conversion between
+  currencies rounds half up to a minor unit of the target (`100.00 USD` at 150 = `15000 JPY`).
+- Every currency field in the API is validated against the real list (any case in, upper case out).
+- Money columns are `numeric(16,4)`. Raw `amount` fields from some endpoints are the database's decimal
+  strings (for example `"1500.0000"`); use the currency's `exponent` to display them.
+- Not built: per-expense-date exchange rates, and cash-rounding rules (for example Swiss 5-rappen).

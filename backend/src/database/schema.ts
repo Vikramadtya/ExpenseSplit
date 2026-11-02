@@ -37,6 +37,9 @@ export const recurringIntervalEnum = pgEnum('recurring_interval', [
 
 // --- TABLES ---
 
+// Money columns are numeric(16,4): 4 decimals covers every ISO 4217 currency (JPY has 0, USD 2, KWD 3,
+// a few funds 4) so nothing is ever rounded on its way into the database. How many decimals an
+// amount may actually have is decided per currency in the application (see common/money).
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: varchar('email', { length: 255 }).notNull().unique(),
@@ -128,7 +131,7 @@ export const expenses = pgTable(
       .notNull()
       .references(() => users.id),
     description: varchar('description', { length: 255 }).notNull(),
-    amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+    amount: decimal('amount', { precision: 16, scale: 4 }).notNull(),
     date: timestamp('date').notNull(),
     splitType: splitTypeEnum('split_type').default('EQUAL').notNull(),
     type: expenseTypeEnum('type').default('EXPENSE').notNull(),
@@ -168,8 +171,8 @@ export const expenseSplits = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    amountOwed: decimal('amount_owed', { precision: 12, scale: 2 }).notNull().default('0'),
-    amountPaid: decimal('amount_paid', { precision: 12, scale: 2 }).notNull().default('0'),
+    amountOwed: decimal('amount_owed', { precision: 16, scale: 4 }).notNull().default('0'),
+    amountPaid: decimal('amount_paid', { precision: 16, scale: 4 }).notNull().default('0'),
   },
   (t) => [
     uniqueIndex('expense_splits_expense_user_uq').on(t.expenseId, t.userId),
@@ -190,7 +193,7 @@ export const settlements = pgTable(
     payeeId: uuid('payee_id')
       .notNull()
       .references(() => users.id),
-    amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+    amount: decimal('amount', { precision: 16, scale: 4 }).notNull(),
     currency: varchar('currency', { length: 3 }).notNull().default('USD'),
     date: timestamp('date').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -357,7 +360,7 @@ export const budgets = pgTable(
     /** A category name, or 'ALL' for everything. */
     category: varchar('category', { length: 40 }).notNull().default('ALL'),
     currency: varchar('currency', { length: 3 }).notNull(),
-    amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+    amount: decimal('amount', { precision: 16, scale: 4 }).notNull(),
     createdById: uuid('created_by_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),

@@ -1,13 +1,15 @@
 import { Controller, Get, Query, Req } from '@nestjs/common';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { currencyCode } from '../common/money/currency-code.schema';
+
 import { PaymentsService } from './payments.service';
 
 export class PaymentLinksQueryDto extends createZodDto(
   z.object({
     payeeId: z.string().uuid(),
     amount: z.coerce.number().positive().max(9_999_999_999),
-    currency: z.string().regex(/^[A-Za-z]{3}$/),
+    currency: currencyCode,
     note: z.string().max(100).default('ExpenseSplit settle up'),
   }),
 ) {}

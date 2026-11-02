@@ -64,6 +64,13 @@
       "when": 1793294917812,
       "tag": "0008_budgets",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793603976389,
+      "tag": "0009_money_precision",
+      "breakpoints": true
     }
   ]
 }

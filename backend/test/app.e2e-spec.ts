@@ -81,7 +81,12 @@ suite('ExpenseSplit API (integration)', () => {
       .useValue({
         fetchLatest: async (base: string) => ({
           date: '2026-10-29',
-          rates: base === 'INR' ? { USD: 0.0125 } : { EUR: 0.5, INR: 80 },
+          rates:
+            base === 'INR'
+              ? { USD: 0.0125 }
+              : base === 'JPY'
+                ? { USD: 0.0067 }
+                : { EUR: 0.5, INR: 80, JPY: 150 },
         }),
       })
       // A scripted scanner: the second receipt in a test run fails, to cover that path.
@@ -646,7 +651,11 @@ suite('ExpenseSplit API (integration)', () => {
 
     it('serves exchange rates', async () => {
       const res = await api('get', '/fx/rates?base=USD', alice).expect(200);
-      expect(res.body).toEqual({ base: 'USD', date: '2026-10-29', rates: { EUR: 0.5, INR: 80 } });
+      expect(res.body).toEqual({
+        base: 'USD',
+        date: '2026-10-29',
+        rates: { EUR: 0.5, INR: 80, JPY: 150 },
+      });
       await api('get', '/fx/rates?base=nope', alice).expect(400);
     });
 
@@ -1517,6 +1526,199 @@ suite('ExpenseSplit API (integration)', () => {
       expect(res.headers['retry-after']).toBeDefined();
       // ...and the account was not deleted by the refused request.
       await api('get', `/workspaces/${club}`, erin).expect(200);
+    });
+  });
+
+  describe('currencies and decimal places', () => {
+    let money: string;
+    const date = () => new Date().toISOString();
+    const spend = (body: object, as = alice) =>
+      api('post', `/workspaces/${money}/expenses`, as).send({
+        date: date(),
+        description: 'Test',
+        ...body,
+      });
+    const equalSplit = (amount: number, currency: string, payer = alice) => ({
+      amount,
+      currency,
+      payers: [{ userId: payer.id, amount }],
+      participants: [alice.id, bob.id, carol.id],
+    });
+
+    beforeAll(async () => {
+      money = (await api('post', '/workspaces', alice).send({ name: 'Many currencies' })).body.id;
+      for (const u of ['bob', 'carol']) {
+        await api('post', `/workspaces/${money}/members`, alice).send({
+          email: `${u}-${tag}@test.dev`,
+        });
+      }
+    });
+
+    it('lists the supported currencies with their decimal places', async () => {
+      const res = await api('get', '/currencies', alice).expect(200);
+      const byCode = Object.fromEntries(res.body.map((c: { code: string }) => [c.code, c]));
+      expect(byCode.USD).toEqual({ code: 'USD', name: 'US Dollar', symbol: '$', exponent: 2 });
+      expect(byCode.JPY.exponent).toBe(0);
+      expect(byCode.KWD.exponent).toBe(3);
+      expect(byCode.XDR).toBeUndefined(); // accounting unit, not for payments
+      expect(res.body.map((c: { code: string }) => c.code)).toEqual(
+        res.body.map((c: { code: string }) => c.code).sort(),
+      );
+      expect(res.headers['cache-control']).toContain('max-age');
+      await request(app.getHttpServer()).get('/api/v1/currencies').expect(401);
+    });
+
+    it('rejects unknown currencies and amounts with too many decimals, as client errors', async () => {
+      await spend({ ...equalSplit(10, 'XYZ') }).expect(400);
+      await spend({ ...equalSplit(10, 'XXX') }).expect(400);
+      await spend({ ...equalSplit(10, '$') }).expect(400);
+      const yen = await spend({ ...equalSplit(100.5, 'JPY') }).expect(400);
+      expect(yen.body.message).toBe('JPY amounts have no decimal places');
+      await spend({ ...equalSplit(10.005, 'USD') }).expect(400);
+      await spend({ ...equalSplit(1.2345, 'KWD') }).expect(400);
+      // Nothing about the failure leaks to the client beyond the message.
+      expect(JSON.stringify(yen.body)).not.toContain('stack');
+    });
+
+    it('splits yen into whole yen, with no cents anywhere', async () => {
+      const res = await spend({ ...equalSplit(1000, 'jpy') }).expect(201); // lower case is accepted
+      expect(res.body.currency).toBe('JPY');
+      const owed = res.body.splits.map((s: { amountOwed: string }) => Number(s.amountOwed)).sort();
+      expect(owed).toEqual([333, 333, 334]);
+
+      const balances = await api('get', `/workspaces/${money}/balances`, alice).expect(200);
+      const jpy = balances.body.byCurrency.find((c: { currency: string }) => c.currency === 'JPY');
+      expect(jpy.owedToYou).toBe(666); // 1000 paid minus Alice's own 334
+      expect(Number.isInteger(jpy.total)).toBe(true);
+
+      const debts = await api('get', `/workspaces/${money}/balances/debts`, alice).expect(200);
+      const yen = debts.body.filter((d: { currency: string }) => d.currency === 'JPY');
+      expect(yen.map((d: { amount: number }) => d.amount)).toEqual([333, 333]);
+    });
+
+    it('keeps three decimals for dinars, exactly', async () => {
+      const res = await spend({
+        amount: 10.001,
+        currency: 'KWD',
+        payers: [{ userId: alice.id, amount: 10.001 }],
+        participants: [alice.id, bob.id],
+      }).expect(201);
+      const owed = Object.fromEntries(
+        res.body.splits.map((s: { userId: string; amountOwed: string }) => [
+          s.userId,
+          Number(s.amountOwed),
+        ]),
+      );
+      expect(owed).toEqual({ [alice.id]: 5.001, [bob.id]: 5 });
+
+      const kwd = (
+        await api('get', `/workspaces/${money}/balances`, bob).expect(200)
+      ).body.byCurrency.find((c: { currency: string }) => c.currency === 'KWD');
+      expect(kwd.youOwe).toBe(5);
+      expect(kwd.total).toBe(5);
+    });
+
+    it('records settlements in the currency of the debt', async () => {
+      await api('post', `/workspaces/${money}/settlements`, bob)
+        .send({ payerId: bob.id, payeeId: alice.id, amount: 50.5, currency: 'JPY', date: date() })
+        .expect(400);
+      await api('post', `/workspaces/${money}/settlements`, bob)
+        .send({ payerId: bob.id, payeeId: alice.id, amount: 100, currency: 'jpy', date: date() })
+        .expect(201);
+      const jpy = (await api('get', `/workspaces/${money}/balances`, alice)).body.byCurrency.find(
+        (c: { currency: string }) => c.currency === 'JPY',
+      );
+      expect(jpy.owedToYou).toBe(566);
+    });
+
+    it('converts a total between currencies with different decimal places', async () => {
+      const yen = (
+        await api('post', '/workspaces', alice).send({ name: 'Yen only', defaultCurrency: 'JPY' })
+      ).body.id;
+      await api('post', `/workspaces/${yen}/members`, alice).send({ email: `bob-${tag}@test.dev` });
+      await api('post', `/workspaces/${yen}/expenses`, alice)
+        .send({
+          description: 'Sushi',
+          amount: 1000,
+          currency: 'JPY',
+          date: new Date().toISOString(),
+          payers: [{ userId: alice.id, amount: 1000 }],
+          participants: [alice.id, bob.id],
+        })
+        .expect(201);
+
+      // Alice is owed 500 JPY; the fake provider says 1 JPY = 0.0067 USD, so 3.35 USD (not 335).
+      const res = await api('get', `/workspaces/${yen}/balances?convertTo=usd`, alice).expect(200);
+      expect(res.body.converted).toEqual({ currency: 'USD', owedToYou: 3.35, youOwe: 0 });
+
+      await api('get', `/workspaces/${yen}/balances?convertTo=XYZ`, alice).expect(400);
+      // A currency with no rate is refused, never guessed: the shared workspace holds KWD.
+      const mixed = await api('get', `/workspaces/${money}/balances?convertTo=usd`, alice).expect(
+        400,
+      );
+      expect(mixed.body.message).toContain('No exchange rate from KWD to USD');
+    });
+
+    it('validates the default currency of a workspace', async () => {
+      await api('post', '/workspaces', alice)
+        .send({ name: 'Bad currency', defaultCurrency: 'XYZ' })
+        .expect(400);
+      const ok = await api('post', '/workspaces', alice)
+        .send({ name: 'Tokyo trip', defaultCurrency: 'jpy' })
+        .expect(201);
+      expect(ok.body.defaultCurrency).toBe('JPY');
+      await api('patch', `/workspaces/${ok.body.id}`, alice)
+        .send({ defaultCurrency: 'nope' })
+        .expect(400);
+    });
+
+    it('keeps budgets, exports and imports in the currency precision', async () => {
+      await api('put', `/workspaces/${money}/budgets`, alice)
+        .send({ category: 'ALL', currency: 'JPY', amount: 1.5 })
+        .expect(400);
+      await api('put', `/workspaces/${money}/budgets`, alice)
+        .send({ category: 'ALL', currency: 'JPY', amount: 10000 })
+        .expect(200);
+
+      const csv = (await api('get', `/workspaces/${money}/export.csv`, alice).expect(200)).text;
+      expect(csv).toContain(',1000,JPY,'); // no ".00" on yen
+      expect(csv).toContain(',10.001,KWD,');
+
+      const target = (await api('post', '/workspaces', alice).send({ name: 'Imported yen' })).body
+        .id;
+      await api('post', `/workspaces/${target}/members`, alice).send({
+        email: `bob-${tag}@test.dev`,
+      });
+      const sheet = [
+        'Date,Description,Category,Cost,Currency,alice,bob',
+        '2026-01-05,Ramen,Dining out,1500,JPY,750,-750',
+        '',
+      ].join('\n');
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/workspaces/${target}/import/splitwise`)
+        .set(alice.auth as Record<string, string>)
+        .set('Content-Type', 'text/csv')
+        .send(sheet)
+        .expect(200);
+      expect(res.body).toEqual(expect.objectContaining({ expenses: 1, errors: [] }));
+      const debts = await api('get', `/workspaces/${target}/balances/debts`, alice).expect(200);
+      expect(debts.body).toEqual([
+        expect.objectContaining({
+          debtor: bob.id,
+          creditor: alice.id,
+          amount: 750,
+          currency: 'JPY',
+        }),
+      ]);
+    });
+
+    it('rounds analytics to the currency, not to cents', async () => {
+      const res = await api('get', `/workspaces/${money}/analytics`, alice).expect(200);
+      const jpy = res.body.byCurrency.find((c: { currency: string }) => c.currency === 'JPY');
+      const kwd = res.body.byCurrency.find((c: { currency: string }) => c.currency === 'KWD');
+      expect(jpy.totalSpend).toBe(1000);
+      expect(kwd.totalSpend).toBe(10.001);
+      expect(kwd.spendByMember.map((m: { amount: number }) => m.amount).sort()).toEqual([5, 5.001]);
     });
   });
 });

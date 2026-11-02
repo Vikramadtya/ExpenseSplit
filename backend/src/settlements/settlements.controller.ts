@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { currencyCode } from '../common/money/currency-code.schema';
+
 import { SettlementsService } from './settlements.service';
 import { IdempotencyInterceptor } from '../common/idempotency/idempotency.interceptor';
 import { CreateSettlementDto } from './dto/create-settlement.dto';
@@ -18,10 +20,7 @@ import { CreateSettlementDto } from './dto/create-settlement.dto';
 const GlobalSettlementSchema = z.object({
   payeeId: z.string().uuid(),
   amount: z.number().positive(),
-  currency: z
-    .string()
-    .regex(/^[A-Za-z]{3}$/)
-    .transform((c) => c.toUpperCase()),
+  currency: currencyCode,
 });
 
 export class GlobalSettlementDto extends createZodDto(GlobalSettlementSchema) {}

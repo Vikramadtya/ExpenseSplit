@@ -1,40 +1,74 @@
+import { Currency, InvalidMoneyError } from './currency';
+
+export { Currency, InvalidMoneyError } from './currency';
+
+/** Percentages and share counts are weighted to at most this many hundredths. */
+const WEIGHT_SCALE = 100;
+
 /**
- * Immutable money value object. Amounts are held as integer minor units (cents)
- * so arithmetic is exact; the API and DB boundary still use 2-decimal values.
+ * Immutable money: an integer number of the currency's minor units (cents, yen, fils...) plus
+ * an ISO 4217 currency. How many decimals the currency has comes from the currency itself, so
+ * 100 JPY is 100 minor units but 100 USD is 10,000. Integer arithmetic keeps sums exact.
+ *
+ * Rounding, where a conversion forces one, is half up to the nearest minor unit.
  */
 export class Money {
-  private static readonly SCALE = 100;
-
   private constructor(
     readonly minor: number,
+    /** Upper-case ISO 4217 code. */
     readonly currency: string,
+    private readonly cur: Currency,
   ) {}
 
-  static fromMinor(minor: number, currency: string): Money {
-    if (!Number.isSafeInteger(minor)) throw new RangeError(`Invalid minor amount: ${minor}`);
-    return new Money(minor, currency);
+  /** How many decimals this amount's currency has. */
+  get exponent(): number {
+    return this.cur.exponent;
   }
 
-  /** Accepts a number or a decimal string such as "12.34". */
+  static fromMinor(minor: number, currency: string): Money {
+    const cur = Currency.of(currency);
+    if (!Number.isSafeInteger(minor)) throw new InvalidMoneyError(`Invalid amount: ${minor}`);
+    return new Money(minor, cur.code, cur);
+  }
+
+  /**
+   * An amount as people write it ("12.34", 12.34). More decimals than the currency has is an
+   * error, not a silent rounding: 10.5 JPY or 1.234 USD is rejected.
+   */
   static fromMajor(amount: number | string, currency: string): Money {
+    const cur = Currency.of(currency);
     const value = Number(amount);
-    if (!Number.isFinite(value)) throw new RangeError(`Invalid amount: ${amount}`);
-    // toPrecision strips binary noise so 1.005 * 100 rounds to 101, not 100.
-    return Money.fromMinor(Math.round(Number((value * Money.SCALE).toPrecision(15))), currency);
+    if (!Number.isFinite(value)) throw new InvalidMoneyError(`Invalid amount: ${String(amount)}`);
+    // toPrecision strips binary noise first, so 1.1 * 100 is 110, not 110.00000000000001.
+    const scaled = Number((value * cur.factor).toPrecision(15));
+    if (!Number.isInteger(scaled)) {
+      const places =
+        cur.exponent === 0 ? 'no decimal places' : `at most ${cur.exponent} decimal places`;
+      throw new InvalidMoneyError(`${cur.code} amounts have ${places}`);
+    }
+    return Money.fromMinor(scaled, cur.code);
+  }
+
+  /** Like fromMajor, but rounds extra decimals to the nearest minor unit (for converted values). */
+  static fromMajorRounded(amount: number | string, currency: string): Money {
+    const cur = Currency.of(currency);
+    const value = Number(amount);
+    if (!Number.isFinite(value)) throw new InvalidMoneyError(`Invalid amount: ${String(amount)}`);
+    return Money.fromMinor(Math.round(Number((value * cur.factor).toPrecision(15))), cur.code);
   }
 
   static zero(currency: string): Money {
-    return new Money(0, currency);
+    return Money.fromMinor(0, currency);
   }
 
   add(other: Money): Money {
     this.assertSameCurrency(other);
-    return new Money(this.minor + other.minor, this.currency);
+    return new Money(this.minor + other.minor, this.currency, this.cur);
   }
 
   subtract(other: Money): Money {
     this.assertSameCurrency(other);
-    return new Money(this.minor - other.minor, this.currency);
+    return new Money(this.minor - other.minor, this.currency, this.cur);
   }
 
   isZero(): boolean {
@@ -45,30 +79,40 @@ export class Money {
     return this.currency === other.currency && this.minor === other.minor;
   }
 
+  /** As a plain number in major units (1234 USD minor -> 12.34). For JSON responses. */
   toMajor(): number {
-    return this.minor / Money.SCALE;
+    return this.minor / this.cur.factor;
   }
 
-  /** Exact decimal string for Postgres `numeric` columns. */
+  /** Exact decimal string with the currency's own number of decimals: "12.34" (USD), "12" (JPY). */
   toDecimal(): string {
     const sign = this.minor < 0 ? '-' : '';
     const abs = Math.abs(this.minor);
-    return `${sign}${Math.floor(abs / Money.SCALE)}.${String(abs % Money.SCALE).padStart(2, '0')}`;
+    if (this.cur.exponent === 0) return `${sign}${abs}`;
+    const factor = this.cur.factor;
+    return `${sign}${Math.floor(abs / factor)}.${String(abs % factor).padStart(this.cur.exponent, '0')}`;
+  }
+
+  /** The same value in another currency at `rate` (units of the target per one of this), rounded to a minor unit. */
+  convertTo(target: string, rate: number): Money {
+    const to = Currency.of(target);
+    if (!(rate > 0) || !Number.isFinite(rate)) throw new InvalidMoneyError('Invalid exchange rate');
+    return Money.fromMinor(Math.round((this.minor / this.cur.factor) * rate * to.factor), to.code);
   }
 
   /**
-   * Splits this amount in proportion to `weights` using the largest-remainder
-   * method: the parts always sum to the original amount, to the cent.
+   * Splits this amount in proportion to `weights` using the largest-remainder method: the parts
+   * always sum to the original amount, to the minor unit.
    */
   allocate(weights: number[]): Money[] {
-    if (this.minor < 0) throw new RangeError('Cannot allocate a negative amount');
-    if (weights.length === 0) throw new RangeError('At least one weight is required');
+    if (this.minor < 0) throw new InvalidMoneyError('Cannot allocate a negative amount');
+    if (weights.length === 0) throw new InvalidMoneyError('At least one weight is required');
 
     // Weights may carry up to 2 decimals (percentages, fractional shares).
-    const scaled = weights.map((w) => BigInt(Math.round(w * Money.SCALE)));
-    if (scaled.some((w) => w < 0n)) throw new RangeError('Weights must not be negative');
+    const scaled = weights.map((w) => BigInt(Math.round(w * WEIGHT_SCALE)));
+    if (scaled.some((w) => w < 0n)) throw new InvalidMoneyError('Weights must not be negative');
     const totalWeight = scaled.reduce((a, b) => a + b, 0n);
-    if (totalWeight === 0n) throw new RangeError('Weights must not all be zero');
+    if (totalWeight === 0n) throw new InvalidMoneyError('Weights must not all be zero');
 
     const total = BigInt(this.minor);
     const parts = scaled.map((w) => ({
@@ -86,12 +130,12 @@ export class Money {
       bonus[index] = 1;
     }
 
-    return parts.map((p, i) => new Money(Number(p.floor) + bonus[i], this.currency));
+    return parts.map((p, i) => new Money(Number(p.floor) + bonus[i], this.currency, this.cur));
   }
 
   private assertSameCurrency(other: Money) {
     if (other.currency !== this.currency) {
-      throw new TypeError(`Currency mismatch: ${this.currency} vs ${other.currency}`);
+      throw new InvalidMoneyError(`Currency mismatch: ${this.currency} vs ${other.currency}`);
     }
   }
 }

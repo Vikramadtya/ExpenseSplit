@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { CurrencySelect } from '../../currency/CurrencySelect';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   updateWorkspaceMutation,
@@ -130,16 +131,11 @@ export function WorkspaceSettingsModal({ isOpen, onClose, workspace }: Props) {
                   <label className="block text-sm font-medium text-text-main mb-1.5">
                     Currency
                   </label>
-                  <select
+                  <CurrencySelect
                     value={currency}
-                    onChange={(e) => setCurrency(e.target.value)}
+                    onChange={setCurrency}
                     className="w-full px-4 py-2.5 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                  >
-                    <option value="USD">USD ($)</option>
-                    <option value="EUR">EUR (€)</option>
-                    <option value="GBP">GBP (£)</option>
-                    <option value="INR">INR (₹)</option>
-                  </select>
+                  />
                 </div>
               </div>
               <div className="flex justify-end pt-2">

@@ -14,7 +14,7 @@ How the app protects people's data, and the risks that are knowingly accepted.
   stolen refresh token is worth. Moving to httpOnly cookies needs the API served same-site as the
   web app.
 - **Input.** Every body is validated by a global Zod pipe; people named in an expense must be
-  workspace members; money is exact integer cents. Receipt uploads are identified by their bytes,
+  workspace members; money is held as exact integer minor units, with each currency's own decimals (ISO 4217), and amounts with too many decimals are rejected. Receipt uploads are identified by their bytes,
   not their `Content-Type`, and served with `nosniff`. CSV export neutralises spreadsheet formulas.
 - **Abuse limits.** Global rate limit, and far lower limits on sign-in, receipt uploads (each scan
   costs money), imports and account deletion.

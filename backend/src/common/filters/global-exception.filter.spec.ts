@@ -1,4 +1,5 @@
-import { HttpException, HttpStatus, Logger } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import { InvalidMoneyError } from '../money/currency';
 import { GlobalExceptionFilter } from './global-exception.filter';
 
 const run = (exception: unknown) => {
@@ -67,6 +68,33 @@ describe('GlobalExceptionFilter', () => {
     const log = logged.join('\n');
     expect(log).not.toContain('jane@example.com');
     expect(log).not.toContain('SECRET-ONE-TIME-CODE');
+  });
+
+  it('keeps the extra fields of a structured client error, so clients can act on them', () => {
+    const { status, body } = run(
+      new BadRequestException({
+        message: 'Match these names',
+        unmatched: ['Zed'],
+        members: [{ id: '1' }],
+      }),
+    );
+    expect(status).toBe(400);
+    expect(body.message).toBe('Match these names');
+    expect(body.unmatched).toEqual(['Zed']);
+    expect(body.members).toEqual([{ id: '1' }]);
+    expect(body.statusCode).toBe(400);
+  });
+
+  it('turns an invalid amount or currency into a 400 with its own message', () => {
+    const { status, body } = run(new InvalidMoneyError('JPY amounts have no decimal places'));
+    expect(status).toBe(400);
+    expect(body.message).toBe('JPY amounts have no decimal places');
+  });
+
+  it('never lets a structured error add fields to a 500', () => {
+    const { body } = run(new HttpException({ message: 'x', secret: 'y' }, 500));
+    expect(body.message).toBe('Internal server error');
+    expect(body.secret).toBeUndefined();
   });
 
   it('still returns specific messages for client errors', () => {

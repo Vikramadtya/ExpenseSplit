@@ -9,6 +9,7 @@ import {
 import { Request, Response } from 'express';
 import { ZodValidationException } from 'nestjs-zod';
 import { describeCauses, redactParams } from './error-details';
+import { InvalidMoneyError } from '../money/currency';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -20,19 +21,37 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
     const reqId = String(request.headers['x-request-id'] || 'unknown');
 
+    // Fields an HttpException carries beyond its message, passed on to the client as they are.
+    const extras = (response: unknown): Record<string, unknown> => {
+      if (typeof response !== 'object' || response === null || Array.isArray(response)) return {};
+      const {
+        message: _m,
+        statusCode: _s,
+        error: _e,
+        ...rest
+      } = response as Record<string, unknown>;
+      return rest;
+    };
+
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: any = 'Internal server error';
     let errorResponse: any = null;
+    let extra: Record<string, unknown> = {};
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       errorResponse = exception.getResponse();
+      extra = extras(errorResponse);
       message =
         typeof errorResponse === 'string' ? errorResponse : errorResponse.message || errorResponse;
+    } else if (exception instanceof InvalidMoneyError) {
+      // A bad amount or currency from the caller, not a server fault. The message is safe to show.
+      status = HttpStatus.BAD_REQUEST;
+      message = exception.message;
     } else if (exception instanceof ZodValidationException) {
       status = HttpStatus.BAD_REQUEST;
       message = 'Validation failed';
-      errorResponse = (exception as any).getZodError().errors;
+      extra = { errors: (exception as any).getZodError().errors };
     } else if (exception instanceof Error) {
       message = exception.message;
     }
@@ -70,7 +89,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       // Internal errors say nothing about the cause; the request id finds it in the server log.
       message: status >= 500 ? 'Internal server error' : message,
       requestId: reqId,
-      details: status === 400 && errorResponse ? errorResponse : undefined,
+      // Structured client errors keep their extra fields (e.g. `blockers`, `unmatched`, `errors`).
+      ...(status < 500 ? extra : {}),
     });
   }
 }

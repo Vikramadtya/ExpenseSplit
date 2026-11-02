@@ -780,6 +780,33 @@ paths:
                           type: string
                         url:
                           type: string
+  /currencies:
+    get:
+      summary: Supported ISO 4217 currencies with their decimal places
+      operationId: listCurrencies
+      responses:
+        '200':
+          description: Currencies sorted by code
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [code, name, symbol, exponent]
+                  properties:
+                    code:
+                      type: string
+                      example: JPY
+                    name:
+                      type: string
+                      example: Japanese Yen
+                    symbol:
+                      type: string
+                      example: ¥
+                    exponent:
+                      type: integer
+                      description: Decimal places in the minor unit (0 for yen, 2 for dollars, 3 for dinars)
   /fx/rates:
     get:
       summary: Latest exchange rates for a base currency
@@ -2182,6 +2209,8 @@ paths:
                       type: string
                     amount:
                       type: number
+                    currency:
+                      type: string
                     date:
                       type: string
                       format: date-time

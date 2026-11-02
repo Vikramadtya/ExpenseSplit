@@ -4,7 +4,7 @@ ExpenseSplit is a modern, modular SaaS platform for tracking shared expenses, bu
 
 ## Features
 - **Groups and friends:** shared groups with roles, invite links, and a private ledger for each pair of friends.
-- **Exact money:** all amounts are integer cents; splits (equal, exact, percentage, shares, itemized) always add up to the cent.
+- **Exact money:** amounts are exact integers of each currency's smallest unit (cents, yen, fils), with ISO 4217 decimals for any currency; splits (equal, exact, percentage, shares, itemized) always add up exactly.
 - **Receipts:** photograph a receipt, tap who had what, and tax and tip are shared in proportion.
 - **Multi-currency:** each expense keeps its own currency; balances are per currency with an optional converted total.
 - **Settling up:** simplified or pairwise debts, partial payments, and UPI / PayPal / Venmo pay links.

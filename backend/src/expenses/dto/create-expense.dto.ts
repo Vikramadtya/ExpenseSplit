@@ -1,5 +1,7 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { currencyCode } from '../../common/money/currency-code.schema';
+
 import { CATEGORIES, isCategory } from '../../common/categories';
 
 const userId = z.string().uuid();
@@ -27,11 +29,7 @@ export const createExpenseSchema = z.object({
     .max(40)
     .transform((c) => (isCategory(c) ? c : 'Other'))
     .default('Other'),
-  currency: z
-    .string()
-    .regex(/^[A-Za-z]{3}$/)
-    .transform((c) => c.toUpperCase())
-    .default('USD'),
+  currency: currencyCode.default('USD'),
   type: z.enum(['EXPENSE', 'TRANSFER']).default('EXPENSE'),
   tags: z.array(z.string().trim().min(1).max(50)).max(20).optional(),
   recurringInterval: z.enum(['NONE', 'DAILY', 'WEEKLY', 'MONTHLY']).default('NONE'),

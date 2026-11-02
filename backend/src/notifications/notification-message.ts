@@ -1,3 +1,5 @@
+import { Currency } from '../common/money/currency';
+
 export type NotificationKind =
   | 'expense.added'
   | 'settlement.received'
@@ -27,8 +29,11 @@ export interface Message {
 const text = (value: unknown, fallback = ''): string =>
   typeof value === 'string' || typeof value === 'number' ? String(value) : fallback;
 
-const money = (amount: unknown, currency: unknown) =>
-  `${Number(amount).toFixed(2)} ${text(currency)}`.trim();
+const money = (amount: unknown, currency: unknown) => {
+  const known = Currency.isValid(currency) ? Currency.of(currency) : null;
+  const value = Number(amount);
+  return `${known ? known.fixed(value) : value.toFixed(2)} ${text(currency)}`.trim();
+};
 
 /** Turns a stored notification into the words shown to the user. */
 export function describe(kind: string, p: Record<string, unknown>): Message {
