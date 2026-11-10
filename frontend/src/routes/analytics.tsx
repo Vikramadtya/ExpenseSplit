@@ -1,22 +1,32 @@
-import DashboardLayout from '../layouts/DashboardLayout';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
-  AreaChart,
   Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
 } from 'recharts';
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { ArrowDownRight, ArrowUpRight, Hash, Lightbulb, Minus } from 'lucide-react';
+import DashboardLayout from '../layouts/DashboardLayout';
 import { PageSkeleton } from '../components/ui/PageSkeleton';
-import { useCategories } from '../features/categories/useCategories';
 import { BudgetsPanel } from '../features/budgets/BudgetsPanel';
-import { formatCurrency } from '../utils/currency';
+import { categoryStyle, useCategories } from '../features/categories/useCategories';
 import { getAnalyticsOptions } from '../api/@tanstack/react-query.gen';
+import { formatCurrency } from '../utils/currency';
 
-const periodStart = (period: 'all' | 'month' | '30d' | 'year'): string | undefined => {
+type Period = 'month' | '30d' | 'year' | 'all';
+
+const PERIODS: Array<{ id: Period; label: string; groupBy: 'day' | 'week' | 'month' }> = [
+  { id: 'month', label: 'This month', groupBy: 'day' },
+  { id: '30d', label: 'Last 30 days', groupBy: 'day' },
+  { id: 'year', label: 'This year', groupBy: 'month' },
+  { id: 'all', label: 'All time', groupBy: 'month' },
+];
+
+const periodStart = (period: Period): string | undefined => {
   const now = new Date();
   if (period === 'month')
     return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
@@ -25,261 +35,447 @@ const periodStart = (period: 'all' | 'month' | '30d' | 'year'): string | undefin
   return undefined;
 };
 
+const percent = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 100) : 0);
+
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+
+const Card = ({
+  title,
+  aside,
+  children,
+}: {
+  title: string;
+  aside?: React.ReactNode;
+  children: React.ReactNode;
+}) => (
+  <section className="glass-panel p-5">
+    <div className="mb-4 flex items-center justify-between gap-3">
+      <h2 className="font-display text-base font-semibold text-text-main">{title}</h2>
+      {aside}
+    </div>
+    {children}
+  </section>
+);
+
+function Change({ value }: { value: number | null | undefined }) {
+  if (value === null || value === undefined) return null;
+  const up = value > 0;
+  const Icon = value === 0 ? Minus : up ? ArrowUpRight : ArrowDownRight;
+  // Spending going up is the "bad" direction, so it is the warm colour.
+  const tone = value === 0 ? 'text-text-muted' : up ? 'text-amber-600' : 'text-emerald-600';
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${tone}`}>
+      <Icon className="h-3.5 w-3.5" />
+      {Math.abs(value)}% vs before
+    </span>
+  );
+}
+
+function Stat({ label, value, note }: { label: string; value: string; note?: React.ReactNode }) {
+  return (
+    <div className="glass-panel p-5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</p>
+      <p className="mt-1.5 font-display text-2xl font-semibold tabular-nums text-text-main">
+        {value}
+      </p>
+      <div className="mt-1 min-h-[1rem]">{note}</div>
+    </div>
+  );
+}
+
 export default function AnalyticsPage({ workspaceId }: { workspaceId: string }) {
-  const { iconOf } = useCategories(workspaceId);
-  const [period, setPeriod] = useState<'all' | 'month' | '30d' | 'year'>('all');
-  const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('day');
+  const { roots, childrenOf, iconOf } = useCategories(workspaceId);
+  const [period, setPeriod] = useState<Period>('month');
+  const [currency, setCurrency] = useState<string | null>(null);
+  const [basis, setBasis] = useState<'mine' | 'group'>('mine');
+  const groupBy = PERIODS.find((p) => p.id === period)?.groupBy ?? 'day';
+
   const { data, isLoading } = useQuery({
     ...getAnalyticsOptions({
       path: { workspaceId },
       query: { from: periodStart(period), groupBy },
     }),
-    // Keep showing the previous numbers while a new period loads, so the page doesn't flash.
+    // Keep the old numbers on screen while a new period loads, so nothing flashes.
     placeholderData: (previous) => previous,
   });
 
-  if (isLoading)
+  const all = data?.byCurrency ?? [];
+  const stat = all.find((s) => s.currency === currency) ?? all[0];
+
+  /** Categories rolled up under their parent, biggest first, each with its sub-categories. */
+  const breakdown = useMemo(() => {
+    if (!stat) return [];
+    const totals = new Map<string, number>(
+      basis === 'mine'
+        ? (stat.yourShareByCategory ?? []).map((c) => [c.category, c.total])
+        : (stat.topCategories ?? []).map((c) => [c.description, c.total]),
+    );
+    const known = new Set<string>();
+    const rows = roots.map((root) => {
+      const kids = childrenOf(root.id)
+        .map((k) => ({ name: k.name, total: totals.get(k.name) ?? 0 }))
+        .filter((k) => k.total > 0)
+        .sort((a, b) => b.total - a.total);
+      known.add(root.name);
+      kids.forEach((k) => known.add(k.name));
+      return {
+        name: root.name,
+        total: (totals.get(root.name) ?? 0) + kids.reduce((sum, k) => sum + k.total, 0),
+        kids,
+      };
+    });
+    // Anything not in the tree (renamed or imported) still shows up, on its own.
+    for (const [name, total] of totals) if (!known.has(name)) rows.push({ name, total, kids: [] });
+    return rows.filter((r) => r.total > 0).sort((a, b) => b.total - a.total);
+  }, [stat, basis, roots, childrenOf]);
+
+  if (isLoading && !data) {
     return (
       <DashboardLayout>
         <PageSkeleton rows={3} />
       </DashboardLayout>
     );
+  }
 
-  const byCurrency = data?.byCurrency || [];
+  const insights: string[] = [];
+  if (stat) {
+    const top = breakdown[0];
+    const base = breakdown.reduce((sum, r) => sum + r.total, 0);
+    if (top && base > 0) {
+      insights.push(
+        `${top.name} is ${basis === 'mine' ? 'where most of your money goes' : "the group's biggest category"}: ${percent(top.total, base)}% of ${basis === 'mine' ? 'your share' : 'spending'}.`,
+      );
+    }
+    const big = stat.biggestExpenses?.[0];
+    if (big) {
+      insights.push(
+        `The biggest expense was “${big.description}” at ${formatCurrency(big.amount, stat.currency)}.`,
+      );
+    }
+    const days = Math.max(stat.spendOverTime?.length ?? 0, 1);
+    if (groupBy === 'day' && stat.expenseCount > 0) {
+      insights.push(
+        `That is about ${formatCurrency(stat.totalSpend / days, stat.currency)} on a typical active day.`,
+      );
+    }
+    if (stat.changeVsPrevious !== null && stat.changeVsPrevious !== undefined) {
+      insights.push(
+        `Spending is ${stat.changeVsPrevious > 0 ? 'up' : stat.changeVsPrevious < 0 ? 'down' : 'flat'}${stat.changeVsPrevious ? ` ${Math.abs(stat.changeVsPrevious)}%` : ''} compared with the period before.`,
+      );
+    }
+  }
+
+  const tick = (v: string) =>
+    new Date(`${v}T12:00:00`).toLocaleDateString(undefined, {
+      month: 'short',
+      ...(groupBy === 'month' ? { year: '2-digit' } : { day: 'numeric' }),
+    });
 
   return (
     <DashboardLayout>
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900 ">Advanced Analytics</h1>
+      <div className="mx-auto max-w-6xl space-y-6">
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="font-display text-2xl font-bold text-text-main">Analytics</h1>
+            <p className="mt-1 text-sm text-text-muted">
+              Where the money goes, and how it changes.
+            </p>
+          </div>
+          <div role="tablist" className="flex gap-1 overflow-x-auto rounded-xl bg-surface p-1">
+            {PERIODS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                role="tab"
+                aria-selected={period === p.id}
+                onClick={() => setPeriod(p.id)}
+                className={`press whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${period === p.id ? 'bg-background text-primary shadow-sm' : 'text-text-muted hover:text-text-main'}`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </header>
 
-        <div className="flex flex-wrap gap-3">
-          <select
-            value={period}
-            onChange={(e) => setPeriod(e.target.value as typeof period)}
-            aria-label="Period"
-            className="field w-auto"
-          >
-            <option value="all">All time</option>
-            <option value="month">This month</option>
-            <option value="30d">Last 30 days</option>
-            <option value="year">This year</option>
-          </select>
-          <select
-            value={groupBy}
-            onChange={(e) => setGroupBy(e.target.value as typeof groupBy)}
-            aria-label="Group by"
-            className="field w-auto"
-          >
-            <option value="day">By day</option>
-            <option value="week">By week</option>
-            <option value="month">By month</option>
-          </select>
-        </div>
+        {all.length > 1 && (
+          <div className="flex flex-wrap gap-2">
+            {all.map((s) => (
+              <button
+                key={s.currency}
+                type="button"
+                onClick={() => setCurrency(s.currency)}
+                className={`press rounded-full border px-3 py-1 text-sm font-medium ${stat?.currency === s.currency ? 'border-primary bg-primary/10 text-primary' : 'border-border text-text-muted hover:text-text-main'}`}
+              >
+                {s.currency}
+              </button>
+            ))}
+          </div>
+        )}
 
-        <BudgetsPanel workspaceId={workspaceId} />
+        {!stat ? (
+          <div className="glass-panel p-12 text-center">
+            <p className="font-medium text-text-main">Nothing to show for this period</p>
+            <p className="mt-1 text-sm text-text-muted">Add an expense or pick a longer period.</p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <Stat
+                label="Your share"
+                value={formatCurrency(stat.trueSpending ?? 0, stat.currency)}
+                note={<span className="text-xs text-text-muted">What you actually owe for</span>}
+              />
+              <Stat
+                label="Group total"
+                value={formatCurrency(stat.totalSpend, stat.currency)}
+                note={<Change value={stat.changeVsPrevious} />}
+              />
+              <Stat
+                label="Average expense"
+                value={formatCurrency(stat.averageExpense ?? 0, stat.currency)}
+                note={<span className="text-xs text-text-muted">per expense</span>}
+              />
+              <Stat
+                label="Expenses"
+                value={String(stat.expenseCount)}
+                note={
+                  <span className="text-xs text-text-muted">
+                    you paid {formatCurrency(stat.cashOut ?? 0, stat.currency)}
+                  </span>
+                }
+              />
+            </div>
 
-        {byCurrency.length === 0 && <p className="text-text-muted">No data available.</p>}
-
-        {byCurrency.map((stat: any) => {
-          const {
-            currency,
-            totalSpend,
-            spendOverTime,
-            topCategories,
-            trueSpending,
-            cashOut,
-            received,
-            paid,
-            todaySpend,
-            thisMonthSpend,
-            monthOverMonthChange,
-            tagsAnalysis,
-          } = stat;
-
-          return (
-            <div
-              key={currency}
-              className="mb-12 border-t border-border pt-8 first:border-0 first:pt-0"
-            >
-              <h2 className="text-xl font-bold text-zinc-900  mb-6 uppercase tracking-wider">
-                {currency}
-              </h2>
-
-              {/* Financial Summary */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                <div className="bg-indigo-50 dark:bg-indigo-900/20 p-5 rounded-xl border border-indigo-100 dark:border-indigo-800/50">
-                  <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
-                    True Spending
-                  </p>
-                  <p className="text-2xl font-bold text-indigo-900 dark:text-indigo-100 mt-1">
-                    {formatCurrency(trueSpending || 0, currency)}
-                  </p>
-                  <p className="text-xs text-indigo-500 mt-1">Your actual share of expenses</p>
-                </div>
-                <div className="bg-emerald-50 dark:bg-emerald-900/20 p-5 rounded-xl border border-emerald-100 dark:border-emerald-800/50">
-                  <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                    Cash Out
-                  </p>
-                  <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100 mt-1">
-                    {formatCurrency(cashOut || 0, currency)}
-                  </p>
-                  <p className="text-xs text-emerald-500 mt-1">Paid from your pocket</p>
-                </div>
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-5 rounded-xl border border-blue-100 dark:border-blue-800/50">
-                  <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                    Received (Settled)
-                  </p>
-                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-100 mt-1">
-                    {formatCurrency(received || 0, currency)}
-                  </p>
-                  <p className="text-xs text-blue-500 mt-1">Cash returned to you</p>
-                </div>
-                <div className="bg-orange-50 dark:bg-orange-900/20 p-5 rounded-xl border border-orange-100 dark:border-orange-800/50">
-                  <p className="text-sm font-medium text-orange-600 dark:text-orange-400">
-                    Paid (Settled)
-                  </p>
-                  <p className="text-2xl font-bold text-orange-900 dark:text-orange-100 mt-1">
-                    {formatCurrency(paid || 0, currency)}
-                  </p>
-                  <p className="text-xs text-orange-500 mt-1">You paid others back</p>
-                </div>
+            {insights.length > 0 && (
+              <div className="glass-panel flex gap-3 p-5">
+                <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+                <ul className="space-y-1.5 text-sm text-text-main">
+                  {insights.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
               </div>
+            )}
 
-              {/* Time stats */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <div className="bg-surface p-6 rounded-xl shadow-sm border border-border">
-                  <p className="text-sm font-medium text-text-muted">Today's Spend</p>
-                  <p className="text-3xl font-bold text-text-main mt-2">
-                    {formatCurrency(todaySpend || 0, currency)}
-                  </p>
-                </div>
-                <div className="bg-surface p-6 rounded-xl shadow-sm border border-border">
-                  <p className="text-sm font-medium text-text-muted">This Month's Spend</p>
-                  <p className="text-3xl font-bold text-text-main mt-2">
-                    {formatCurrency(thisMonthSpend || 0, currency)}
-                  </p>
-                  {monthOverMonthChange != null && (
-                    <p
-                      className={`text-xs mt-1 font-medium ${monthOverMonthChange > 0 ? 'text-red-500' : 'text-emerald-600'}`}
+            <Card title="Spending over time">
+              {stat.spendOverTime.length === 0 ? (
+                <p className="py-10 text-center text-sm text-text-muted">
+                  No spending in this period.
+                </p>
+              ) : (
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                      data={stat.spendOverTime}
+                      margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
                     >
-                      {monthOverMonthChange > 0 ? '▲' : '▼'} {Math.abs(monthOverMonthChange)}% vs
-                      last month
-                    </p>
+                      <defs>
+                        <linearGradient id="spendFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.35} />
+                          <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="var(--border)"
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="date"
+                        tickFormatter={tick}
+                        tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
+                        axisLine={false}
+                        tickLine={false}
+                        minTickGap={24}
+                      />
+                      <YAxis
+                        tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={48}
+                        tickFormatter={(v: number) =>
+                          v >= 1000 ? `${Math.round(v / 100) / 10}k` : String(v)
+                        }
+                      />
+                      <Tooltip
+                        formatter={(v) => [formatCurrency(Number(v), stat.currency), 'Spent']}
+                        labelFormatter={(l) => tick(String(l))}
+                        contentStyle={{
+                          background: 'var(--background)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 12,
+                        }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="amount"
+                        stroke="var(--primary)"
+                        strokeWidth={2}
+                        fill="url(#spendFill)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </Card>
+
+            <div className="grid gap-6 lg:grid-cols-5">
+              <div className="lg:col-span-3">
+                <Card
+                  title="By category"
+                  aside={
+                    <div role="tablist" className="flex gap-1 rounded-lg bg-surface p-0.5 text-xs">
+                      {(['mine', 'group'] as const).map((b) => (
+                        <button
+                          key={b}
+                          type="button"
+                          role="tab"
+                          aria-selected={basis === b}
+                          onClick={() => setBasis(b)}
+                          className={`rounded-md px-2.5 py-1 font-medium ${basis === b ? 'bg-background text-primary shadow-sm' : 'text-text-muted'}`}
+                        >
+                          {b === 'mine' ? 'Your share' : 'Group'}
+                        </button>
+                      ))}
+                    </div>
+                  }
+                >
+                  {breakdown.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-text-muted">No categories yet.</p>
+                  ) : (
+                    <ul className="space-y-4">
+                      {breakdown.map((row) => {
+                        const base = breakdown.reduce((sum, r) => sum + r.total, 0);
+                        return (
+                          <li key={row.name}>
+                            <div className="flex items-center gap-3">
+                              <span
+                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg"
+                                style={categoryStyle(row.name)}
+                              >
+                                {iconOf(row.name)}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-baseline justify-between gap-2">
+                                  <span className="truncate text-sm font-medium text-text-main">
+                                    {row.name}
+                                  </span>
+                                  <span className="text-sm tabular-nums text-text-main">
+                                    {formatCurrency(row.total, stat.currency)}
+                                    <span className="ml-1.5 text-xs text-text-muted">
+                                      {percent(row.total, base)}%
+                                    </span>
+                                  </span>
+                                </div>
+                                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-border/60">
+                                  <div
+                                    className="h-full rounded-full transition-all duration-500"
+                                    style={{
+                                      width: `${percent(row.total, base)}%`,
+                                      backgroundColor: categoryStyle(row.name).color,
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                            {row.kids.length > 0 && (
+                              <ul className="ml-12 mt-2 space-y-1">
+                                {row.kids.map((kid) => (
+                                  <li
+                                    key={kid.name}
+                                    className="flex justify-between text-xs text-text-muted"
+                                  >
+                                    <span>
+                                      {iconOf(kid.name)} {kid.name}
+                                    </span>
+                                    <span className="tabular-nums">
+                                      {formatCurrency(kid.total, stat.currency)}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
                   )}
-                </div>
-                <div className="bg-surface p-6 rounded-xl shadow-sm border border-border">
-                  <p className="text-sm font-medium text-text-muted">Workspace Total Spend</p>
-                  <p className="text-3xl font-bold text-text-main mt-2">
-                    {formatCurrency(totalSpend, currency)}
-                  </p>
-                </div>
+                </Card>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                {/* Spend Over Time */}
-                <div className="bg-surface p-6 rounded-xl shadow-sm border border-border">
-                  <h2 className="text-lg font-semibold text-text-main mb-4">Spend Over Time</h2>
-                  <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart
-                        data={spendOverTime}
-                        margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                      >
-                        <defs>
-                          <linearGradient
-                            id={`colorAmount-${currency}`}
-                            x1="0"
-                            y1="0"
-                            x2="0"
-                            y2="1"
-                          >
-                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
-                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          vertical={false}
-                          stroke="#e5e7eb"
-                          className="dark:stroke-zinc-800"
-                        />
-                        <XAxis
-                          dataKey="date"
-                          stroke="#9ca3af"
-                          fontSize={12}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <YAxis
-                          stroke="#9ca3af"
-                          fontSize={12}
-                          tickLine={false}
-                          axisLine={false}
-                          tickFormatter={(value) => formatCurrency(value, currency)}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: 'var(--color-surface)',
-                            border: '1px solid var(--color-border)',
-                            borderRadius: '8px',
-                          }}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="amount"
-                          stroke="#8b5cf6"
-                          fillOpacity={1}
-                          fill={`url(#colorAmount-${currency})`}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                {/* Top Categories */}
-                <div className="bg-surface p-6 rounded-xl shadow-sm border border-border">
-                  <h2 className="text-lg font-semibold text-text-main mb-4">Categories & Tags</h2>
-
-                  <div className="space-y-4 mb-6">
-                    <h3 className="text-sm font-medium text-text-muted">Top Categories</h3>
-                    {topCategories?.map((cat: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xl">{iconOf(cat.description)}</span>
-                          <span className="text-sm font-medium text-text-main">
-                            {cat.description}
-                          </span>
-                        </div>
-                        <span className="text-sm font-bold text-text-main">
-                          {formatCurrency(cat.total, currency)}
+              <div className="space-y-6 lg:col-span-2">
+                <Card title="Who the spending is for">
+                  <ul className="space-y-3">
+                    {stat.spendByMember.map((m) => (
+                      <li key={m.userId} className="flex items-center gap-3">
+                        <span
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+                          style={categoryStyle(m.name)}
+                        >
+                          {initials(m.name)}
                         </span>
-                      </div>
+                        <span className="flex-1 truncate text-sm text-text-main">{m.name}</span>
+                        <span className="text-sm tabular-nums text-text-main">
+                          {formatCurrency(m.amount, stat.currency)}
+                        </span>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
+                </Card>
 
-                  {tagsAnalysis && tagsAnalysis.length > 0 && (
-                    <div className="space-y-4 pt-4 border-t border-border">
-                      <h3 className="text-sm font-medium text-text-muted">Top Tags</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {tagsAnalysis.map((tag: any, i: number) => (
-                          <div
-                            key={i}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 rounded-lg text-sm font-medium border border-indigo-100 dark:border-indigo-800"
-                          >
-                            #{tag.tag}
-                            <span className="opacity-60">
-                              {formatCurrency(tag.total, currency)}
-                            </span>
+                <Card title="Biggest expenses">
+                  {(stat.biggestExpenses ?? []).length === 0 ? (
+                    <p className="text-sm text-text-muted">None yet.</p>
+                  ) : (
+                    <ul className="space-y-3">
+                      {stat.biggestExpenses?.map((e) => (
+                        <li key={e.id} className="flex items-center gap-3">
+                          <span className="text-lg">{iconOf(e.category)}</span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-text-main">
+                              {e.description}
+                            </p>
+                            <p className="text-xs text-text-muted">{tick(e.date)}</p>
                           </div>
-                        ))}
-                      </div>
-                    </div>
+                          <span className="text-sm tabular-nums text-text-main">
+                            {formatCurrency(e.amount, stat.currency)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   )}
-                </div>
+                </Card>
               </div>
             </div>
-          );
-        })}
+
+            {(stat.tagsAnalysis ?? []).length > 0 && (
+              <Card title="Top tags">
+                <div className="flex flex-wrap gap-2">
+                  {stat.tagsAnalysis?.slice(0, 12).map((t) => (
+                    <span
+                      key={t.tag}
+                      className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-sm text-primary"
+                    >
+                      <Hash className="h-3.5 w-3.5" />
+                      {t.tag}
+                      <span className="text-primary/70">
+                        · {formatCurrency(t.total ?? 0, stat.currency)}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </>
+        )}
+
+        <BudgetsPanel workspaceId={workspaceId} />
       </div>
     </DashboardLayout>
   );

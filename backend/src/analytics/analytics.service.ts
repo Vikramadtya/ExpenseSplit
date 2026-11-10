@@ -44,6 +44,9 @@ export class AnalyticsService {
       const currency = t.currency as string;
       const mine = forCurrency(data.mine, currency)[0];
       const settled = forCurrency(data.settlements, currency)[0];
+      const total = money(t.total, currency);
+      const before = forCurrency(data.previous, currency)[0];
+      const previousSpend = before ? money(before.total, currency) : null;
       const thisMonth = money(t.this_month, currency);
       const lastMonth = money(t.last_month, currency);
 
@@ -61,6 +64,26 @@ export class AnalyticsService {
         lastMonthSpend: lastMonth,
         monthOverMonthChange:
           lastMonth > 0 ? Math.round(((thisMonth - lastMonth) / lastMonth) * 1000) / 10 : null,
+        averageExpense: t.n ? money(Number(t.total) / (t.n as number), currency) : 0,
+        // The same-length window just before the chosen period; null for "all time".
+        previousPeriodSpend: q.from ? (previousSpend ?? 0) : null,
+        changeVsPrevious:
+          previousSpend && previousSpend > 0
+            ? Math.round(((total - previousSpend) / previousSpend) * 1000) / 10
+            : null,
+        biggestExpenses: forCurrency(data.biggest, currency)
+          .slice(0, 5)
+          .map((e) => ({
+            id: e.id as string,
+            description: e.description as string,
+            category: e.category as string,
+            date: iso(e.date),
+            amount: money(e.amount, currency),
+          })),
+        yourShareByCategory: forCurrency(data.myCategories, currency).map((c) => ({
+          category: c.category as string,
+          total: money(c.total, currency),
+        })),
         spendByMember: forCurrency(data.members, currency).map((m) => ({
           userId: m.user_id as string,
           name: m.name as string,

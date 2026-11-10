@@ -1159,6 +1159,15 @@ suite('ExpenseSplit API (integration)', () => {
         { description: 'Food & Drink', count: 1, total: 40 },
         { description: 'Transport', count: 1, total: 20 },
       ]);
+      expect(u.averageExpense).toBe(36.67);
+      expect(u.previousPeriodSpend).toBeNull(); // "all time" has no previous window
+      expect(u.biggestExpenses.map((e: { amount: number }) => e.amount)).toEqual([50, 40, 20]);
+      expect(u.yourShareByCategory).toEqual([
+        { category: 'Utilities', total: 25 },
+        { category: 'Food & Drink', total: 20 },
+        { category: 'Transport', total: 10 },
+      ]);
+      expect(usd(await analytics(`?from=${lastMonth}`)).previousPeriodSpend).not.toBeNull(); // a bounded period compares with the window before it
       expect(u.tagsAnalysis).toEqual([
         { tag: 'dinner', total: 60 },
         { tag: 'trip', total: 20 },

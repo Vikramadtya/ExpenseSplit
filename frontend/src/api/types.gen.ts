@@ -225,6 +225,26 @@ export type Analytics = {
      * Percent change of this month's spending against last month's
      */
     monthOverMonthChange?: number | null;
+    averageExpense?: number;
+    /**
+     * Spending in the same-length window just before the chosen period (null for all time)
+     */
+    previousPeriodSpend?: number | null;
+    /**
+     * Percent change against that previous window
+     */
+    changeVsPrevious?: number | null;
+    biggestExpenses?: Array<{
+      id: string;
+      description: string;
+      category: string;
+      date: string;
+      amount: number;
+    }>;
+    yourShareByCategory?: Array<{
+      category: string;
+      total: number;
+    }>;
     tagsAnalysis?: Array<{
       tag?: string;
       total?: number;

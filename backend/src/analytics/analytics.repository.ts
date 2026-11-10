@@ -33,7 +33,26 @@ export class AnalyticsRepository {
       ${f.to ? sql`AND e.date <= ${f.to.toISOString()}` : sql``}`;
     const unit = sql.raw(`'${f.groupBy}'`); // groupBy is validated to one of three literals
 
-    const [totals, overTime, categories, tags, members, mine, settlements] = await Promise.all([
+    // The same-length window just before `from`, for "vs the previous period".
+    const windowMs = f.from ? (f.to ?? new Date()).getTime() - f.from.getTime() : 0;
+    const previousFrom = f.from ? new Date(f.from.getTime() - windowMs) : undefined;
+    const previousWhere: SQL = sql`e.workspace_id IN (${ids}) AND e.deleted_at IS NULL AND e.type = 'EXPENSE'
+      ${f.currency ? sql`AND e.currency = ${f.currency}` : sql``}
+      AND e.date >= ${(previousFrom ?? new Date(0)).toISOString()}
+      AND e.date < ${(f.from ?? new Date(0)).toISOString()}`;
+
+    const [
+      totals,
+      overTime,
+      categories,
+      tags,
+      members,
+      mine,
+      settlements,
+      biggest,
+      myCategories,
+      previous,
+    ] = await Promise.all([
       this.db.execute(sql`
         SELECT e.currency,
                SUM(e.amount) AS total,
@@ -74,12 +93,36 @@ export class AnalyticsRepository {
            ${f.from ? sql`AND st.date >= ${f.from.toISOString()}` : sql``}
            ${f.to ? sql`AND st.date <= ${f.to.toISOString()}` : sql``}
          GROUP BY st.currency`),
+      this.db.execute(sql`
+        SELECT id, currency, description, category, date, amount FROM (
+          SELECT e.id, e.currency, e.description, e.category, e.date, e.amount,
+                 ROW_NUMBER() OVER (PARTITION BY e.currency ORDER BY e.amount DESC, e.date DESC) AS rn
+            FROM expenses e WHERE ${where}
+        ) ranked WHERE rn <= 5 ORDER BY amount DESC`),
+      this.db.execute(sql`
+        SELECT e.currency, e.category, SUM(s.amount_owed) AS total
+          FROM expenses e JOIN expense_splits s ON s.expense_id = e.id
+         WHERE ${where} AND s.user_id = ${f.userId}
+         GROUP BY e.currency, e.category ORDER BY total DESC`),
+      f.from
+        ? this.db.execute(sql`
+            SELECT e.currency, SUM(e.amount) AS total FROM expenses e
+             WHERE ${previousWhere} GROUP BY e.currency`)
+        : Promise.resolve([]),
     ]);
 
-    return { totals, overTime, categories, tags, members, mine, settlements } as Record<
-      string,
-      Row[]
-    >;
+    return {
+      totals,
+      overTime,
+      categories,
+      tags,
+      members,
+      mine,
+      settlements,
+      biggest,
+      myCategories,
+      previous,
+    } as Record<string, Row[]>;
   }
 
   /** Tags used in a workspace, most used first (for autocomplete). */

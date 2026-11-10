@@ -558,6 +558,42 @@ components:
                 type: number
                 nullable: true
                 description: Percent change of this month's spending against last month's
+              averageExpense:
+                type: number
+              previousPeriodSpend:
+                type: number
+                nullable: true
+                description: Spending in the same-length window just before the chosen period (null for all time)
+              changeVsPrevious:
+                type: number
+                nullable: true
+                description: Percent change against that previous window
+              biggestExpenses:
+                type: array
+                items:
+                  type: object
+                  required: [id, description, category, date, amount]
+                  properties:
+                    id:
+                      type: string
+                    description:
+                      type: string
+                    category:
+                      type: string
+                    date:
+                      type: string
+                    amount:
+                      type: number
+              yourShareByCategory:
+                type: array
+                items:
+                  type: object
+                  required: [category, total]
+                  properties:
+                    category:
+                      type: string
+                    total:
+                      type: number
               tagsAnalysis:
                 type: array
                 items:
