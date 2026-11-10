@@ -113,15 +113,13 @@ export function DataTransferMenu({ workspaceId }: { workspaceId: string }) {
 
       {csv !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4 border border-zinc-200 dark:border-zinc-800">
+          <div className="bg-background rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4 border border-border">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                Import from Splitwise
-              </h2>
+              <h2 className="text-lg font-semibold text-text-main">Import from Splitwise</h2>
               <button
                 onClick={close}
                 aria-label="Close"
-                className="p-1 text-zinc-500 hover:text-zinc-900"
+                className="p-1 text-text-muted hover:text-zinc-900"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -135,13 +133,13 @@ export function DataTransferMenu({ workspaceId }: { workspaceId: string }) {
                 {unmatched.unmatched.map((name) => (
                   <label
                     key={name}
-                    className="flex items-center justify-between gap-3 text-sm text-zinc-700 dark:text-zinc-300"
+                    className="flex items-center justify-between gap-3 text-sm text-text-main"
                   >
                     {name}
                     <select
                       value={mapping[name] ?? ''}
                       onChange={(e) => setMapping({ ...mapping, [name]: e.target.value })}
-                      className="input-field w-44"
+                      className="field w-44"
                     >
                       <option value="">Choose…</option>
                       {unmatched.members.map((m) => (
@@ -155,7 +153,7 @@ export function DataTransferMenu({ workspaceId }: { workspaceId: string }) {
                 <button
                   disabled={busy || unmatched.unmatched.some((n) => !mapping[n])}
                   onClick={() => run(csv, true, mapping)}
-                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 disabled:opacity-50 rounded-xl"
+                  className="btn-primary"
                 >
                   Preview
                 </button>
@@ -163,7 +161,7 @@ export function DataTransferMenu({ workspaceId }: { workspaceId: string }) {
             )}
 
             {report && (
-              <div className="space-y-3 text-sm text-zinc-700 dark:text-zinc-300">
+              <div className="space-y-3 text-sm text-text-main">
                 <p>
                   {report.dryRun ? 'Ready to import' : 'Imported'}{' '}
                   <strong>{report.expenses}</strong> expenses and <strong>{report.payments}</strong>{' '}
@@ -185,22 +183,19 @@ export function DataTransferMenu({ workspaceId }: { workspaceId: string }) {
                   <button
                     disabled={busy || report.expenses + report.payments === 0}
                     onClick={() => run(csv, false, mapping)}
-                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl"
+                    className="btn-primary"
                   >
                     Import now
                   </button>
                 ) : (
-                  <button
-                    onClick={close}
-                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-xl"
-                  >
+                  <button onClick={close} className="btn-primary">
                     Done
                   </button>
                 )}
               </div>
             )}
 
-            {!unmatched && !report && <p className="text-sm text-zinc-500">Reading the file…</p>}
+            {!unmatched && !report && <p className="text-sm text-text-muted">Reading the file…</p>}
           </div>
         </div>
       )}

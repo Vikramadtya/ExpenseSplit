@@ -50,14 +50,14 @@ export default function AnalyticsPage({ workspaceId }: { workspaceId: string }) 
   return (
     <DashboardLayout>
       <div className="p-6 max-w-7xl mx-auto space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Advanced Analytics</h1>
+        <h1 className="text-2xl font-bold text-gray-900 ">Advanced Analytics</h1>
 
         <div className="flex flex-wrap gap-3">
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value as typeof period)}
             aria-label="Period"
-            className="input-field w-auto"
+            className="field w-auto"
           >
             <option value="all">All time</option>
             <option value="month">This month</option>
@@ -68,7 +68,7 @@ export default function AnalyticsPage({ workspaceId }: { workspaceId: string }) 
             value={groupBy}
             onChange={(e) => setGroupBy(e.target.value as typeof groupBy)}
             aria-label="Group by"
-            className="input-field w-auto"
+            className="field w-auto"
           >
             <option value="day">By day</option>
             <option value="week">By week</option>
@@ -78,7 +78,7 @@ export default function AnalyticsPage({ workspaceId }: { workspaceId: string }) 
 
         <BudgetsPanel workspaceId={workspaceId} />
 
-        {byCurrency.length === 0 && <p className="text-zinc-500">No data available.</p>}
+        {byCurrency.length === 0 && <p className="text-text-muted">No data available.</p>}
 
         {byCurrency.map((stat: any) => {
           const {
@@ -99,9 +99,9 @@ export default function AnalyticsPage({ workspaceId }: { workspaceId: string }) 
           return (
             <div
               key={currency}
-              className="mb-12 border-t border-zinc-200 dark:border-zinc-800 pt-8 first:border-0 first:pt-0"
+              className="mb-12 border-t border-border pt-8 first:border-0 first:pt-0"
             >
-              <h2 className="text-xl font-bold text-zinc-900 dark:text-white mb-6 uppercase tracking-wider">
+              <h2 className="text-xl font-bold text-zinc-900  mb-6 uppercase tracking-wider">
                 {currency}
               </h2>
 

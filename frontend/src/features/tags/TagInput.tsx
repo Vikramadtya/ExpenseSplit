@@ -75,7 +75,7 @@ export function TagInput({ workspaceId, value, onChange, placeholder = 'Add tags
     <div ref={box} className="relative">
       <div
         onClick={() => setOpen(true)}
-        className="flex min-h-[46px] flex-wrap items-center gap-1.5 rounded-2xl border border-border bg-surface px-3 py-2 transition-shadow focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/30"
+        className="flex min-h-[46px] flex-wrap items-center gap-1.5 rounded-xl border border-border bg-surface px-3 py-2 transition-shadow focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/30"
       >
         <Hash className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
         {value.map((tag) => (

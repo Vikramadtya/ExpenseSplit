@@ -39,6 +39,17 @@ export interface ExpenseListQuery {
   limit?: number;
 }
 
+/** The member who paid the most, as the single `paidBy` clients show and edit. */
+const withPaidBy = <T extends { splits?: Array<{ userId: string; amountPaid: string }> }>(
+  e: T,
+) => ({
+  ...e,
+  paidBy: (e.splits ?? []).reduce<{ userId: string; amountPaid: string } | undefined>(
+    (best, s) => (!best || Number(s.amountPaid) > Number(best.amountPaid) ? s : best),
+    undefined,
+  )?.userId,
+});
+
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
 
@@ -162,7 +173,7 @@ export class ExpensesService {
 
     const items = rows.slice(0, limit);
     const nextCursor = rows.length > limit ? encodeCursor(items[items.length - 1]) : null;
-    return { items, nextCursor };
+    return { items: items.map(withPaidBy), nextCursor };
   }
 
   async findOne(workspaceId: string, expenseId: string) {

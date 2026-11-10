@@ -41,7 +41,7 @@ export function AddExpenseForm() {
           <input
             type="text"
             {...register('description')}
-            className="w-full border rounded p-2"
+            className="field w-full"
             placeholder="Dinner, Taxi, etc."
           />
           {errors.description && (
@@ -56,20 +56,20 @@ export function AddExpenseForm() {
               type="number"
               step="0.01"
               {...register('amount', { valueAsNumber: true })}
-              className="w-full border rounded p-2"
+              className="field w-full"
             />
             {errors.amount && <p className="text-red-500 text-sm mt-1">{errors.amount.message}</p>}
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Date</label>
-            <input type="date" {...register('date')} className="w-full border rounded p-2" />
+            <input type="date" {...register('date')} className="field w-full" />
             {errors.date && <p className="text-red-500 text-sm mt-1">{errors.date.message}</p>}
           </div>
         </div>
 
         <div>
           <label className="block text-sm font-medium mb-1">Group</label>
-          <select {...register('groupId')} className="w-full border rounded p-2 bg-white">
+          <select {...register('groupId')} className="field w-full">
             <option value="">Select a Group...</option>
             <option value="g-1">Apartment Expenses</option>
             <option value="g-2">Trip to Hawaii</option>

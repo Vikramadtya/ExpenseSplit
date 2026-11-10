@@ -117,11 +117,7 @@ export function CategoryPicker({
         }}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className={
-          variant === 'pill'
-            ? 'pill'
-            : 'press flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text-main'
-        }
+        className={variant === 'pill' ? 'pill' : 'field flex w-auto items-center gap-2 text-left'}
       >
         <span aria-hidden>{icon}</span>
         <span className="max-w-[15rem] truncate">{label}</span>

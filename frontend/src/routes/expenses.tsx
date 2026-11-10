@@ -9,7 +9,7 @@ import {
   restoreExpenseMutation,
 } from '../api/@tanstack/react-query.gen';
 import { formatCurrency } from '../utils/currency';
-import { Search, Filter, ArrowUpDown, Pencil, Trash2, Settings2, Hash } from 'lucide-react';
+import { Search, Pencil, Trash2, Hash } from 'lucide-react';
 import { EditExpenseModal } from '../features/expenses/components/EditExpenseModal';
 import { CurrencySelect } from '../features/currency/CurrencySelect';
 import { DataTransferMenu } from '../features/data/DataTransferMenu';
@@ -115,21 +115,18 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
               placeholder="Search expenses..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-background border border-border rounded-lg pl-9 pr-4 py-2 text-sm text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              className="field w-full pl-9 pr-4"
             />
           </div>
 
           <div className="flex w-full md:w-auto gap-3 overflow-x-auto pb-1 md:pb-0">
-            <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-1.5 min-w-max">
-              <Filter className="w-4 h-4 text-text-muted" />
-              <CurrencySelect
-                value={filterCurrency}
-                onChange={setFilterCurrency}
-                allLabel="All Currencies"
-                ariaLabel="Currency filter"
-                className="bg-transparent text-sm text-text-main focus:outline-none cursor-pointer max-w-[11rem]"
-              />
-            </div>
+            <CurrencySelect
+              value={filterCurrency}
+              onChange={setFilterCurrency}
+              allLabel="All currencies"
+              ariaLabel="Currency filter"
+              className="field w-auto min-w-[9rem] max-w-[12rem]"
+            />
 
             <CategoryPicker
               workspaceId={workspaceId}
@@ -140,19 +137,17 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
               variant="bar"
             />
 
-            <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-1.5 min-w-max">
-              <ArrowUpDown className="w-4 h-4 text-text-muted" />
-              <select
-                value={sortBy}
-                onChange={(e: any) => setSortBy(e.target.value)}
-                className="bg-transparent text-sm text-text-main focus:outline-none cursor-pointer"
-              >
-                <option value="date-desc">Newest First</option>
-                <option value="date-asc">Oldest First</option>
-                <option value="amount-desc">Highest Amount</option>
-                <option value="amount-asc">Lowest Amount</option>
-              </select>
-            </div>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+              aria-label="Sort"
+              className="field w-auto"
+            >
+              <option value="date-desc">Newest first</option>
+              <option value="date-asc">Oldest first</option>
+              <option value="amount-desc">Highest amount</option>
+              <option value="amount-asc">Lowest amount</option>
+            </select>
           </div>
         </div>
 
@@ -165,13 +160,6 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
               placeholder="Filter by tag…"
             />
           </div>
-          <button
-            type="button"
-            onClick={() => setManagingCategories(true)}
-            className="press inline-flex items-center gap-2 rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-text-main hover:border-primary/50"
-          >
-            <Settings2 className="h-4 w-4" /> Categories
-          </button>
         </div>
 
         <RecurringList workspaceId={workspaceId} />
@@ -265,12 +253,14 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
                     <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => setEditingExpenseId(expense.id)}
+                        aria-label={`Edit ${expense.description}`}
                         className="p-2 text-text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(expense.id)}
+                        aria-label={`Delete ${expense.description}`}
                         className="p-2 text-text-muted hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />

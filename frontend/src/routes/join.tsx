@@ -51,7 +51,7 @@ export default function JoinRoute({ token }: { token: string }) {
             <button
               onClick={() => accept.mutate({ path: { token } })}
               disabled={accept.isPending}
-              className="mt-6 w-full px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl transition-colors"
+              className="btn-primary mt-6 w-full"
             >
               {invite.alreadyMember
                 ? 'Open workspace'

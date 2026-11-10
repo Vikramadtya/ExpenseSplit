@@ -221,7 +221,7 @@ export function CategoryManager({ workspaceId, onClose }: Props) {
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
               onKeyDown={(e) => e.key === 'Enter' && void save(c)}
               aria-label="Category name"
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-text-main outline-none focus:border-primary"
+              className="field w-full"
             />
             <div className="flex flex-wrap gap-1">
               {EMOJIS.map((emoji) => (
@@ -242,7 +242,7 @@ export function CategoryManager({ workspaceId, onClose }: Props) {
                   value={draft.parentId}
                   disabled={childrenOf(c.id).length > 0}
                   onChange={(e) => setDraft({ ...draft, parentId: e.target.value })}
-                  className="rounded-lg border border-border bg-background px-2 py-1 text-text-main disabled:opacity-50"
+                  className="field"
                 >
                   <option value="">Nothing (top level)</option>
                   {roots
@@ -267,7 +267,7 @@ export function CategoryManager({ workspaceId, onClose }: Props) {
                 type="button"
                 disabled={!draft.name.trim() || update.isPending}
                 onClick={() => void save(c)}
-                className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                className="btn-primary"
               >
                 <Check className="h-4 w-4" /> Save
               </button>
@@ -297,13 +297,13 @@ export function CategoryManager({ workspaceId, onClose }: Props) {
           }}
           placeholder="New category name"
           aria-label="New category name"
-          className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm text-text-main outline-none focus:border-primary"
+          className="field min-w-0 flex-1"
         />
         <button
           type="button"
           onClick={() => void add()}
           disabled={!newName.trim() || create.isPending}
-          className="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="btn-primary"
         >
           Add
         </button>
@@ -327,7 +327,7 @@ export function CategoryManager({ workspaceId, onClose }: Props) {
               setAddingUnder('root');
               setNewName('');
             }}
-            className="press flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-white"
+            className="btn-primary w-full py-3"
           >
             <Plus className="h-4 w-4" /> New category
           </button>

@@ -1641,6 +1641,7 @@ suite('ExpenseSplit API (integration)', () => {
       const found = (await api('get', `/workspaces/${ws}/expenses?tags=Trip`, alice).expect(200))
         .body;
       expect(found).toHaveLength(2);
+      expect(found[0].paidBy).toBe(alice.id);
     });
   });
 

@@ -71,7 +71,7 @@ export function BudgetsPanel({ workspaceId }: { workspaceId: string }) {
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             aria-label="Budget category"
-            className="input-field w-auto"
+            className="field w-auto"
           >
             <option value="ALL">Everything</option>
             {roots.map((root) => [
@@ -92,13 +92,9 @@ export function BudgetsPanel({ workspaceId }: { workspaceId: string }) {
             inputMode="decimal"
             placeholder={`Limit in ${workspace?.defaultCurrency ?? 'USD'}`}
             aria-label="Budget amount"
-            className="input-field w-40"
+            className="field w-40"
           />
-          <button
-            type="submit"
-            disabled={save.isPending}
-            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl"
-          >
+          <button type="submit" disabled={save.isPending} className="btn-primary">
             Save
           </button>
         </form>

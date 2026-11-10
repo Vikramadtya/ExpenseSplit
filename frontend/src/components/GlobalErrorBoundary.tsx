@@ -46,10 +46,7 @@ export class GlobalErrorBoundary extends Component<Props, State> {
               </div>
             )}
 
-            <button
-              onClick={() => window.location.reload()}
-              className="w-full py-3 px-4 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
-            >
+            <button onClick={() => window.location.reload()} className="btn-primary w-full py-3">
               <RefreshCw className="w-5 h-5" />
               Reload Application
             </button>

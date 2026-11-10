@@ -137,7 +137,7 @@ export default function FriendsRoute() {
                         handleSettle(friend.userId, friend.netBalance, friend.currency || 'USD')
                       }
                       disabled={settleMutation.isPending && settlingFriend === friend.userId}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                      className="btn-primary"
                     >
                       <Wallet className="w-4 h-4" />
                       {settleMutation.isPending && settlingFriend === friend.userId

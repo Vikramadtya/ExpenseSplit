@@ -65,16 +65,12 @@ export function PaymentHandlesForm() {
               value={values[f.key]}
               onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
               placeholder={f.placeholder}
-              className="input-field mt-1 block w-full"
+              className="field mt-1 block w-full"
             />
           </label>
         ))}
       </div>
-      <button
-        type="submit"
-        disabled={save.isPending}
-        className="mt-4 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl"
-      >
+      <button type="submit" disabled={save.isPending} className="btn-primary mt-4">
         Save
       </button>
     </form>

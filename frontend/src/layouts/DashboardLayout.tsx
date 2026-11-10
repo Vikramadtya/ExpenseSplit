@@ -96,10 +96,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <span className="text-sm font-medium ">{currentUser.name || currentUser.email}</span>
             </button>
           )}
-          <Link
-            to="/workspaces"
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full text-text-muted hover:bg-surface hover:text-text-main transition-colors text-sm font-medium border border-transparent hover:border-border/50"
-          >
+          <Link to="/workspaces" className="btn-ghost">
             <LogOut className="w-4 h-4" />
             <span className="hidden sm:inline">Workspaces</span>
           </Link>

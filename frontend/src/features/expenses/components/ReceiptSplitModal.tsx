@@ -191,16 +191,16 @@ export function ReceiptSplitModal({ isOpen, onClose, workspaceId }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-zinc-200 dark:border-zinc-800">
-        <div className="sticky top-0 z-10 flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md">
-          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+      <div className="bg-background rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-border">
+        <div className="sticky top-0 z-10 flex items-center justify-between p-4 border-b border-border bg-background backdrop-blur-md">
+          <h2 className="text-xl font-semibold text-text-main flex items-center gap-2">
             <Receipt className="w-5 h-5 text-indigo-500" />
             Split a receipt
           </h2>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="p-2 text-zinc-500 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="p-2 text-text-muted rounded-full hover:bg-surface"
           >
             <X className="w-5 h-5" />
           </button>
@@ -264,7 +264,7 @@ export function ReceiptSplitModal({ isOpen, onClose, workspaceId }: Props) {
                 <input
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="input-field mt-1 block w-full"
+                  className="field mt-1 block w-full"
                   placeholder="Joe's Pizza"
                   required
                 />
@@ -274,7 +274,7 @@ export function ReceiptSplitModal({ isOpen, onClose, workspaceId }: Props) {
                 <CurrencySelect
                   value={effectiveCurrency}
                   onChange={setCurrency}
-                  className="input-field mt-1 block w-full"
+                  className="field mt-1 block w-full"
                 />
               </label>
               <label className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -282,7 +282,7 @@ export function ReceiptSplitModal({ isOpen, onClose, workspaceId }: Props) {
                 <select
                   value={payer}
                   onChange={(e) => setPaidBy(e.target.value)}
-                  className="input-field mt-1 block w-full"
+                  className="field mt-1 block w-full"
                 >
                   {members.map((m) => (
                     <option key={m.id} value={m.id}>
@@ -295,17 +295,14 @@ export function ReceiptSplitModal({ isOpen, onClose, workspaceId }: Props) {
 
             <ul className="space-y-3">
               {lines.map((line) => (
-                <li
-                  key={line.key}
-                  className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 space-y-2"
-                >
+                <li key={line.key} className="rounded-xl border border-border p-3 space-y-2">
                   <div className="flex gap-2">
                     <input
                       value={line.name}
                       onChange={(e) => patch(line.key, { name: e.target.value })}
                       placeholder="Item"
                       aria-label="Item name"
-                      className="input-field flex-1 min-w-0"
+                      className="field flex-1 min-w-0"
                     />
                     <input
                       value={line.amount}
@@ -313,13 +310,13 @@ export function ReceiptSplitModal({ isOpen, onClose, workspaceId }: Props) {
                       placeholder="0.00"
                       aria-label="Item price"
                       inputMode="decimal"
-                      className="input-field w-24 text-right"
+                      className="field w-24 text-right"
                     />
                     <button
                       type="button"
                       onClick={() => setLines(lines.filter((l) => l.key !== line.key))}
                       aria-label="Remove item"
-                      className="p-2 text-zinc-400 hover:text-red-500"
+                      className="p-2 text-text-muted hover:text-red-500"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -333,7 +330,7 @@ export function ReceiptSplitModal({ isOpen, onClose, workspaceId }: Props) {
                           key={m.id}
                           onClick={() => toggle(line, m.id)}
                           aria-pressed={on}
-                          className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${on ? 'bg-indigo-600 text-white border-indigo-600' : 'text-zinc-500 border-zinc-300 dark:border-zinc-700'}`}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${on ? 'bg-indigo-600 text-white border-indigo-600' : 'text-text-muted border-border'}`}
                         >
                           {m.name.split(' ')[0]}
                         </button>
@@ -360,7 +357,7 @@ export function ReceiptSplitModal({ isOpen, onClose, workspaceId }: Props) {
                   onChange={(e) => setTax(e.target.value)}
                   inputMode="decimal"
                   placeholder="0.00"
-                  className="input-field mt-1 block w-full"
+                  className="field mt-1 block w-full"
                 />
               </label>
               <label className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -370,18 +367,18 @@ export function ReceiptSplitModal({ isOpen, onClose, workspaceId }: Props) {
                   onChange={(e) => setTip(e.target.value)}
                   inputMode="decimal"
                   placeholder="0.00"
-                  className="input-field mt-1 block w-full"
+                  className="field mt-1 block w-full"
                 />
               </label>
             </div>
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-text-muted">
               Tax and tip are shared in proportion to what each person ordered.
             </p>
 
-            <div className="flex items-center justify-between pt-2 border-t border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center justify-between pt-2 border-t border-border">
               <span className="text-sm text-zinc-600 dark:text-zinc-400">
                 Total{' '}
-                <strong className="text-zinc-900 dark:text-zinc-100">
+                <strong className="text-text-main">
                   {formatCurrency(fromMinor(total, effectiveCurrency), effectiveCurrency)}
                 </strong>
               </span>
@@ -389,14 +386,14 @@ export function ReceiptSplitModal({ isOpen, onClose, workspaceId }: Props) {
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 text-sm rounded-xl text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  className="px-4 py-2 text-sm rounded-xl text-zinc-600 hover:bg-surface"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!canSave || create.isPending}
-                  className="px-5 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl"
+                  className="btn-primary"
                 >
                   Save expense
                 </button>

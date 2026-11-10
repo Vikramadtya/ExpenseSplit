@@ -61,7 +61,7 @@ export function InviteMemberModal({ isOpen, onClose, workspaceId }: Props) {
               <UserPlus className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Invite Member</h2>
+              <h2 className="text-xl font-bold text-gray-900 ">Invite Member</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Add someone to this workspace
               </p>
@@ -81,9 +81,7 @@ export function InviteMemberModal({ isOpen, onClose, workspaceId }: Props) {
               <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center mb-4">
                 <Check className="w-8 h-8" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
-                Member Added!
-              </h3>
+              <h3 className="text-lg font-bold text-gray-900  mb-1">Member Added!</h3>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 They can now see this workspace.
               </p>
@@ -109,7 +107,7 @@ export function InviteMemberModal({ isOpen, onClose, workspaceId }: Props) {
                       setEmail(e.target.value);
                       setErrorMsg('');
                     }}
-                    className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all dark:text-white"
+                    className="field w-full pl-10 pr-4"
                     placeholder="colleague@example.com"
                     required
                     autoFocus
@@ -140,7 +138,7 @@ export function InviteMemberModal({ isOpen, onClose, workspaceId }: Props) {
           <InviteLinkSection workspaceId={workspaceId} />
 
           <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
-            <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-4">
+            <h3 className="text-sm font-bold text-gray-900  mb-4">
               Current Members ({members.length})
             </h3>
             <div className="space-y-3">
@@ -153,7 +151,7 @@ export function InviteMemberModal({ isOpen, onClose, workspaceId }: Props) {
                     {member.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate flex items-center gap-2">
+                    <p className="text-sm font-medium text-gray-900  truncate flex items-center gap-2">
                       {member.name}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 truncate">

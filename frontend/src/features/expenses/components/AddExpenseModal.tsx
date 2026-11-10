@@ -5,10 +5,13 @@ import toast from 'react-hot-toast';
 import {
   createExpenseMutation,
   createRecurringMutation,
+  updateExpenseMutation,
   getCurrentUserOptions,
   getWorkspaceMembersOptions,
   getWorkspaceOptions,
 } from '../../../api/@tanstack/react-query.gen';
+import type { Expense } from '../../../api/types.gen';
+import { ExpenseComments } from './ExpenseComments';
 import { Sheet } from '../../../components/ui/Sheet';
 import { CategoryManager } from '../../categories/CategoryManager';
 import { CategoryPicker } from '../../categories/CategoryPicker';
@@ -144,9 +147,17 @@ const Section = ({
 );
 
 export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId }) =>
-  isOpen ? <AddExpenseSheet onClose={onClose} workspaceId={workspaceId} /> : null;
+  isOpen ? <ExpenseSheet onClose={onClose} workspaceId={workspaceId} /> : null;
 
-function AddExpenseSheet({ onClose, workspaceId }: Omit<Props, 'isOpen'>) {
+const ALL_AMOUNT_TYPES: SplitType[] = ['EQUAL', 'EXACT', 'PERCENTAGE'];
+
+/** One form for both adding and editing, so the two always look and behave the same. */
+export function ExpenseSheet({
+  onClose,
+  workspaceId,
+  expense,
+}: Omit<Props, 'isOpen'> & { expense?: Expense }) {
+  const editing = !!expense;
   const queryClient = useQueryClient();
   const { data: members = [] } = useQuery(getWorkspaceMembersOptions({ path: { workspaceId } }));
   const { data: workspace } = useQuery(getWorkspaceOptions({ path: { workspaceId } }));
@@ -154,29 +165,52 @@ function AddExpenseSheet({ onClose, workspaceId }: Omit<Props, 'isOpen'>) {
   const { categories } = useCategories(workspaceId);
   const createExpense = useMutation(createExpenseMutation());
   const createRecurring = useMutation(createRecurringMutation());
+  const updateExpense = useMutation(updateExpenseMutation());
 
-  const [amountText, setAmountText] = useState('');
-  const [currency, setCurrency] = useState(workspace?.defaultCurrency || 'USD');
-  const [description, setDescription] = useState('');
-  const [date, setDate] = useState(todayISO);
-  const [category, setCategory] = useState('Other');
-  const [categoryTouched, setCategoryTouched] = useState(false);
-  const [tags, setTags] = useState<string[]>([]);
+  const [amountText, setAmountText] = useState(() =>
+    expense ? String(Number(expense.amount)) : '',
+  );
+  const [currency, setCurrency] = useState(
+    expense?.currency ?? workspace?.defaultCurrency ?? 'USD',
+  );
+  const [description, setDescription] = useState(expense?.description ?? '');
+  const [date, setDate] = useState(() => expense?.date.slice(0, 10) ?? todayISO());
+  const [category, setCategory] = useState(expense?.category ?? 'Other');
+  const [categoryTouched, setCategoryTouched] = useState(editing);
+  const [tags, setTags] = useState<string[]>(expense?.tags ?? []);
   const [repeat, setRepeat] = useState<Repeat>('NONE');
   const [managing, setManaging] = useState(false);
 
-  const [paidBy, setPaidBy] = useState('');
+  const [paidBy, setPaidBy] = useState(expense?.paidBy ?? '');
   const [multiplePayers, setMultiplePayers] = useState(false);
   const [payerAmounts, setPayerAmounts] = useState<Record<string, number>>({});
 
-  const [splitType, setSplitType] = useState<SplitType>('EQUAL');
-  const [participants, setParticipants] = useState<string[]>([]);
-  const [exactAmounts, setExactAmounts] = useState<Record<string, number>>({});
-  const [percentages, setPercentages] = useState<Record<string, number>>({});
+  const [splitType, setSplitType] = useState<SplitType>(
+    ALL_AMOUNT_TYPES.includes(expense?.splitType as SplitType)
+      ? (expense?.splitType as SplitType)
+      : 'EQUAL',
+  );
+  const [participants, setParticipants] = useState<string[]>(
+    () => expense?.splits?.map((x) => x.userId) ?? [],
+  );
+  const [exactAmounts, setExactAmounts] = useState<Record<string, number>>(() =>
+    Object.fromEntries((expense?.splits ?? []).map((x) => [x.userId, Number(x.amountOwed)])),
+  );
+  const [percentages, setPercentages] = useState<Record<string, number>>(() =>
+    Object.fromEntries(
+      (expense?.splits ?? []).map((x) => [
+        x.userId,
+        expense && Number(expense.amount)
+          ? Math.round((Number(x.amountOwed) / Number(expense.amount)) * 10_000) / 100
+          : 0,
+      ]),
+    ),
+  );
 
   // Members and the workspace load after the sheet opens; fill the defaults once, when they do.
   const seeded = useRef({ members: false, currency: false });
   useEffect(() => {
+    if (editing) return; // an existing expense keeps its own payer, people and currency
     if (!seeded.current.members && members.length > 0) {
       seeded.current.members = true;
       setParticipants(members.map((m) => m.id));
@@ -186,7 +220,7 @@ function AddExpenseSheet({ onClose, workspaceId }: Omit<Props, 'isOpen'>) {
       seeded.current.currency = true;
       setCurrency(workspace.defaultCurrency);
     }
-  }, [members, workspace, me]);
+  }, [members, workspace, me, editing]);
 
   // Until the user picks one, the description chooses the category.
   const suggested = useMemo(
@@ -234,9 +268,11 @@ function AddExpenseSheet({ onClose, workspaceId }: Omit<Props, 'isOpen'>) {
         ? `${formatCurrency(amount, currency)} · ${SPLIT_LABELS[splitType].toLowerCase()}`
         : 'Add an amount to split';
 
+  const pending = createExpense.isPending || createRecurring.isPending || updateExpense.isPending;
+
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (problem || createExpense.isPending || createRecurring.isPending) return;
+    if (problem || pending) return;
 
     const payers = multiplePayers
       ? Object.entries(payerAmounts)
@@ -253,7 +289,25 @@ function AddExpenseSheet({ onClose, workspaceId }: Omit<Props, 'isOpen'>) {
         : undefined;
 
     try {
-      if (repeat !== 'NONE') {
+      if (expense) {
+        await updateExpense.mutateAsync({
+          path: { expenseId: expense.id },
+          body: {
+            description: description.trim(),
+            amount,
+            date,
+            splitType,
+            paidBy,
+            participants,
+            category,
+            tags,
+            currency,
+            exactAmounts: exact,
+            percentages: percent,
+            expectedVersion: expense.version,
+          } as never,
+        });
+      } else if (repeat !== 'NONE') {
         // A repeating expense is a rule: the server creates this one now and the next ones on schedule.
         await createRecurring.mutateAsync({
           path: { workspaceId },
@@ -293,14 +347,19 @@ function AddExpenseSheet({ onClose, workspaceId }: Omit<Props, 'isOpen'>) {
       }
       // Refresh in the background: the sheet closes as soon as the server has saved it.
       void queryClient.invalidateQueries();
-      toast.success(repeat === 'NONE' ? 'Expense added' : 'Recurring expense set up');
+      toast.success(
+        editing
+          ? 'Changes saved'
+          : repeat === 'NONE'
+            ? 'Expense added'
+            : 'Recurring expense set up',
+      );
       onClose();
     } catch {
       toast.error('Could not save the expense. Please try again.');
     }
   };
 
-  const pending = createExpense.isPending || createRecurring.isPending;
   const symbol = getCurrencySymbol(currency);
 
   const numberBox = (
@@ -323,7 +382,7 @@ function AddExpenseSheet({ onClose, workspaceId }: Omit<Props, 'isOpen'>) {
         value={value || ''}
         onChange={(e) => onChange(Number.parseFloat(e.target.value) || 0)}
         placeholder="0"
-        className={`w-full rounded-xl border border-border bg-background py-1.5 text-right text-sm text-text-main outline-none focus:border-primary focus:ring-2 focus:ring-primary/30 ${prefix ? 'pl-7' : 'pl-3'} ${suffix ? 'pr-7' : 'pr-3'}`}
+        className={`field py-1.5 text-right ${prefix ? 'pl-7' : ''} ${suffix ? 'pr-7' : ''}`}
       />
       {suffix && (
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">
@@ -353,7 +412,7 @@ function AddExpenseSheet({ onClose, workspaceId }: Omit<Props, 'isOpen'>) {
         }}
       >
         <Sheet
-          title="New expense"
+          title={editing ? 'Edit expense' : 'New expense'}
           subtitle={workspace?.name}
           onClose={onClose}
           footer={
@@ -368,7 +427,7 @@ function AddExpenseSheet({ onClose, workspaceId }: Omit<Props, 'isOpen'>) {
                 type="button"
                 onClick={() => void submit()}
                 disabled={!!problem || pending}
-                className="press flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-base font-semibold text-white shadow-[0_8px_24px_-8px_rgba(99,102,241,0.7)] transition-all hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                className="btn-primary w-full py-3.5 text-base"
               >
                 {pending ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -377,9 +436,11 @@ function AddExpenseSheet({ onClose, workspaceId }: Omit<Props, 'isOpen'>) {
                 )}
                 {pending
                   ? 'Saving…'
-                  : repeat === 'NONE'
-                    ? 'Add expense'
-                    : 'Start recurring expense'}
+                  : editing
+                    ? 'Save changes'
+                    : repeat === 'NONE'
+                      ? 'Add expense'
+                      : 'Start recurring expense'}
                 {!pending && (
                   <kbd className="ml-1 hidden rounded bg-white/20 px-1.5 py-0.5 text-xs font-normal sm:inline">
                     ⌘↵
@@ -410,7 +471,7 @@ function AddExpenseSheet({ onClose, workspaceId }: Omit<Props, 'isOpen'>) {
                   setCurrency(c);
                   setAmountText((t) => cleanAmount(t, c));
                 }}
-                className="cursor-pointer rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-text-muted outline-none hover:border-primary/50"
+                className="field cursor-pointer"
               />
             </div>
 
@@ -420,7 +481,7 @@ function AddExpenseSheet({ onClose, workspaceId }: Omit<Props, 'isOpen'>) {
               placeholder="What was it for?"
               aria-label="Description"
               maxLength={255}
-              className="w-full rounded-2xl border border-border bg-surface px-4 py-3.5 text-base text-text-main outline-none transition-shadow placeholder:text-text-muted focus:border-primary/60 focus:ring-2 focus:ring-primary/30"
+              className="field w-full"
             />
 
             <div className="flex flex-wrap gap-2">
@@ -445,14 +506,16 @@ function AddExpenseSheet({ onClose, workspaceId }: Omit<Props, 'isOpen'>) {
                   className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                 />
               </label>
-              <SelectPill
-                icon={<Repeat className="h-4 w-4 text-text-muted" />}
-                label={REPEAT_LABELS[repeat]}
-                value={repeat}
-                onChange={(v) => setRepeat(v as Repeat)}
-                options={Object.entries(REPEAT_LABELS)}
-                ariaLabel="Repeats"
-              />
+              {!editing && (
+                <SelectPill
+                  icon={<Repeat className="h-4 w-4 text-text-muted" />}
+                  label={REPEAT_LABELS[repeat]}
+                  value={repeat}
+                  onChange={(v) => setRepeat(v as Repeat)}
+                  options={Object.entries(REPEAT_LABELS)}
+                  ariaLabel="Repeats"
+                />
+              )}
             </div>
 
             <Section title="Tags">
@@ -482,7 +545,7 @@ function AddExpenseSheet({ onClose, workspaceId }: Omit<Props, 'isOpen'>) {
                       m.id,
                       m.id === me?.id ? 'You' : m.name,
                     ]),
-                    ['__multiple__', 'Multiple people…'],
+                    ...(editing ? [] : [['__multiple__', 'Multiple people…'] as [string, string]]),
                   ]}
                   ariaLabel="Paid by"
                 />
@@ -596,6 +659,7 @@ function AddExpenseSheet({ onClose, workspaceId }: Omit<Props, 'isOpen'>) {
                 })}
               </ul>
             </Section>
+            {expense && <ExpenseComments expenseId={expense.id} />}
           </div>
         </Sheet>
       </form>

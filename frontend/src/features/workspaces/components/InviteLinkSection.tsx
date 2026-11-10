@@ -24,7 +24,7 @@ export function InviteLinkSection({ workspaceId }: { workspaceId: string }) {
 
   return (
     <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700">
-      <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-1 flex items-center gap-2">
+      <h3 className="text-sm font-bold text-gray-900  mb-1 flex items-center gap-2">
         <Link2 className="w-4 h-4" />
         Invite with a link
       </h3>
@@ -37,7 +37,7 @@ export function InviteLinkSection({ workspaceId }: { workspaceId: string }) {
             readOnly
             value={link}
             onFocus={(e) => e.currentTarget.select()}
-            className="flex-1 min-w-0 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl dark:text-white"
+            className="field flex-1 min-w-0"
           />
           <button
             onClick={copy}

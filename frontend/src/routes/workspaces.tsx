@@ -66,7 +66,7 @@ function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Apartment 4B"
-              className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              className="field w-full"
             />
           </div>
           <div className="flex flex-col gap-1.5 mt-2">
@@ -76,7 +76,7 @@ function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
             <CurrencySelect
               value={defaultCurrency}
               onChange={setDefaultCurrency}
-              className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              className="field w-full"
             />
           </div>
           <div className="flex justify-end gap-3 pt-1">

@@ -45,7 +45,7 @@ export function GlobalOverview({
           <select
             value={selectedCurrency || activeBalance?.currency}
             onChange={(e) => setSelectedCurrency(e.target.value)}
-            className="input-field max-w-[120px] text-sm py-1.5"
+            className="field max-w-[120px]"
           >
             {balances.byCurrency.map((b: any) => (
               <option key={b.currency} value={b.currency}>

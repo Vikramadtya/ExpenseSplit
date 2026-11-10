@@ -97,7 +97,7 @@ export function AccountSettings() {
             <input
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              className="input-field mt-1 block w-full max-w-xs"
+              className="field mt-1 block w-full max-w-xs"
               autoComplete="off"
             />
           </label>

@@ -188,7 +188,7 @@ export const DebtSimplificationPanel: React.FC<Props> = ({ workspaceId }) => {
                   step={inputStep(confirmDebt.currency || 'USD')}
                   min="0"
                   max={confirmDebt.amount}
-                  className="input-field pl-12"
+                  className="field pl-12"
                   value={settleAmount}
                   onChange={(e) => setSettleAmount(e.target.value)}
                 />
