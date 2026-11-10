@@ -64,7 +64,8 @@ export interface ExpenseFilter {
   q?: string;
   tags?: string[];
   currency?: string;
-  category?: string;
+  /** Match any of these category names (a category and its children). */
+  categories?: string[];
   from?: Date;
   to?: Date;
   after?: { date: Date; id: string };

@@ -31,6 +31,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { RecurringModule } from './recurring/recurring.module';
 import { ReceiptsModule } from './receipts/receipts.module';
 import { BudgetsModule } from './budgets/budgets.module';
+import { CategoriesModule } from './categories/categories.module';
 import { DataTransferModule } from './data-transfer/data-transfer.module';
 import { AccountModule } from './account/account.module';
 import { CurrenciesModule } from './currencies/currencies.module';
@@ -73,6 +74,7 @@ import { MetricsController } from './common/metrics.controller';
     RecurringModule,
     ReceiptsModule,
     BudgetsModule,
+    CategoriesModule,
     DataTransferModule,
     AccountModule,
     CurrenciesModule,

@@ -59,13 +59,24 @@ export class BudgetsRepository {
   }
 
   /** What the workspace spent this month, in one currency (optionally one category). */
-  async spentThisMonth(workspaceId: string, currency: string, category: string): Promise<number> {
+  async spentThisMonth(
+    workspaceId: string,
+    currency: string,
+    categories: string[] | 'ALL',
+  ): Promise<number> {
     const rows = await this.db.execute(sql`
       SELECT COALESCE(SUM(amount), 0) AS spent FROM expenses
        WHERE workspace_id = ${workspaceId} AND currency = ${currency}
          AND deleted_at IS NULL AND type = 'EXPENSE'
          AND date >= date_trunc('month', now() AT TIME ZONE 'UTC') AND date < date_trunc('month', now() AT TIME ZONE 'UTC') + interval '1 month'
-         ${category === 'ALL' ? sql`` : sql`AND category = ${category}`}`);
+         ${
+           categories === 'ALL'
+             ? sql``
+             : sql`AND category IN (${sql.join(
+                 categories.map((c) => sql`${c}`),
+                 sql`, `,
+               )})`
+         }`);
     return Number(rows[0]?.spent ?? 0);
   }
 

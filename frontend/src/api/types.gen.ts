@@ -98,6 +98,25 @@ export type Receipt = {
   } | null;
 };
 
+export type Category = {
+  id: string;
+  name: string;
+  icon: string;
+  parentId: string | null;
+  expenseCount: number;
+  /**
+   * The fallback category, which cannot be renamed, moved or deleted
+   */
+  locked: boolean;
+};
+
+export type CategoryRow = {
+  id: string;
+  name: string;
+  icon: string;
+  parentId: string | null;
+};
+
 export type Budget = {
   id: string;
   category: string;
@@ -1307,7 +1326,13 @@ export type ListTagsData = {
   path: {
     workspaceId: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Only tags containing this text (prefix matches first)
+     */
+    q?: string;
+    limit?: number;
+  };
   url: '/workspaces/{workspaceId}/tags';
 };
 
@@ -1322,6 +1347,95 @@ export type ListTagsResponses = {
 };
 
 export type ListTagsResponse = ListTagsResponses[keyof ListTagsResponses];
+
+export type ListCategoriesData = {
+  body?: never;
+  path: {
+    workspaceId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/categories';
+};
+
+export type ListCategoriesResponses = {
+  /**
+   * Categories with how many expenses use each
+   */
+  200: Array<Category>;
+};
+
+export type ListCategoriesResponse = ListCategoriesResponses[keyof ListCategoriesResponses];
+
+export type CreateCategoryData = {
+  body: {
+    name: string;
+    icon?: string;
+    parentId?: string | null;
+  };
+  path: {
+    workspaceId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/categories';
+};
+
+export type CreateCategoryErrors = {
+  /**
+   * A category with that name already exists
+   */
+  409: unknown;
+};
+
+export type CreateCategoryResponses = {
+  /**
+   * Created
+   */
+  201: CategoryRow;
+};
+
+export type CreateCategoryResponse = CreateCategoryResponses[keyof CreateCategoryResponses];
+
+export type DeleteCategoryData = {
+  body?: never;
+  path: {
+    workspaceId: string;
+    categoryId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/categories/{categoryId}';
+};
+
+export type DeleteCategoryResponses = {
+  /**
+   * Deleted
+   */
+  204: void;
+};
+
+export type DeleteCategoryResponse = DeleteCategoryResponses[keyof DeleteCategoryResponses];
+
+export type UpdateCategoryData = {
+  body: {
+    name?: string;
+    icon?: string;
+    parentId?: string | null;
+  };
+  path: {
+    workspaceId: string;
+    categoryId: string;
+  };
+  query?: never;
+  url: '/workspaces/{workspaceId}/categories/{categoryId}';
+};
+
+export type UpdateCategoryResponses = {
+  /**
+   * Updated
+   */
+  200: CategoryRow;
+};
+
+export type UpdateCategoryResponse = UpdateCategoryResponses[keyof UpdateCategoryResponses];
 
 export type ListBudgetsData = {
   body?: never;

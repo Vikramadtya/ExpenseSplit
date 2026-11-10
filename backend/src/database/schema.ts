@@ -12,6 +12,7 @@ import {
   index,
   uniqueIndex,
   primaryKey,
+  type AnyPgColumn,
   date as pgDate,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
@@ -118,6 +119,24 @@ export const recurringRules = pgTable(
     index('recurring_rules_due_idx').on(t.active, t.nextRunAt),
     index('recurring_rules_workspace_idx').on(t.workspaceId),
   ],
+);
+
+/** A workspace's own spending categories: one level of nesting (a parent and its children). */
+export const categories = pgTable(
+  'categories',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 40 }).notNull(),
+    icon: varchar('icon', { length: 16 }).notNull().default('📦'),
+    parentId: uuid('parent_id').references((): AnyPgColumn => categories.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex('categories_workspace_name_uq').on(t.workspaceId, sql`lower(${t.name})`)],
 );
 
 export const expenses = pgTable(

@@ -1,7 +1,8 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { IWorkspacesRepositoryToken } from '../common/interfaces/repository.interfaces';
 import type { IWorkspacesRepository } from '../common/interfaces/repository.interfaces';
 import { Money } from '../common/money/money';
+import { CategoriesService } from '../categories/categories.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Budget, BudgetsRepository } from './budgets.repository';
 
@@ -18,6 +19,7 @@ export class BudgetsService {
   constructor(
     private readonly repository: BudgetsRepository,
     private readonly notifications: NotificationsService,
+    private readonly categories: CategoriesService,
     @Inject(IWorkspacesRepositoryToken) private readonly workspaces: IWorkspacesRepository,
   ) {}
 
@@ -31,10 +33,13 @@ export class BudgetsService {
     userId: string,
     data: { category: string; currency: string; amount: number },
   ) {
+    const category =
+      data.category === 'ALL' ? 'ALL' : await this.categories.find(workspaceId, data.category);
+    if (!category) throw new BadRequestException(`Unknown category "${data.category}"`);
     const row = await this.repository.upsert({
       workspaceId,
       createdById: userId,
-      category: data.category,
+      category,
       currency: data.currency,
       amount: Money.fromMajor(data.amount, data.currency).toDecimal(),
     });
@@ -54,7 +59,7 @@ export class BudgetsService {
   private async check(expense: { workspaceId: string; currency: string; category: string }) {
     const matching = await this.repository.findMatching(expense.workspaceId, expense.currency, [
       'ALL',
-      expense.category,
+      ...(await this.categories.lineage(expense.workspaceId, expense.category)),
     ]);
     for (const budget of matching) {
       const { spent, percent } = await this.usage(budget);
@@ -80,11 +85,12 @@ export class BudgetsService {
   }
 
   private async usage(budget: Budget) {
-    const spent = await this.repository.spentThisMonth(
-      budget.workspaceId,
-      budget.currency,
-      budget.category,
-    );
+    // A budget on a parent category also counts what its sub-categories spent.
+    const scope =
+      budget.category === 'ALL'
+        ? 'ALL'
+        : await this.categories.branch(budget.workspaceId, budget.category);
+    const spent = await this.repository.spentThisMonth(budget.workspaceId, budget.currency, scope);
     const limit = Number(budget.amount);
     return { spent, percent: limit > 0 ? Math.floor((spent / limit) * 100) : 0 };
   }

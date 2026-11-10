@@ -225,6 +225,41 @@ components:
               type: boolean
             suggestedCategory:
               type: string
+    Category:
+      type: object
+      required: [id, name, icon, parentId, expenseCount, locked]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        icon:
+          type: string
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+        expenseCount:
+          type: integer
+        locked:
+          type: boolean
+          description: The fallback category, which cannot be renamed, moved or deleted
+    CategoryRow:
+      type: object
+      required: [id, name, icon, parentId]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        icon:
+          type: string
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
     Budget:
       type: object
       required: [id, category, currency, amount, spent, percent]
@@ -2028,6 +2063,16 @@ paths:
         schema:
           type: string
           format: uuid
+      - name: q
+        in: query
+        description: Only tags containing this text (prefix matches first)
+        schema:
+          type: string
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          maximum: 100
       responses:
         '200':
           description: Tags with usage counts
@@ -2043,6 +2088,123 @@ paths:
                       type: string
                     count:
                       type: integer
+  /workspaces/{workspaceId}/categories:
+    get:
+      summary: The workspace's categories (a flat list; children point at their parent)
+      operationId: listCategories
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Categories with how many expenses use each
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+    post:
+      summary: Add a category, optionally under a top-level parent
+      operationId: createCategory
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  maxLength: 40
+                icon:
+                  type: string
+                  maxLength: 16
+                parentId:
+                  type: string
+                  format: uuid
+                  nullable: true
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryRow'
+        '409':
+          description: A category with that name already exists
+  /workspaces/{workspaceId}/categories/{categoryId}:
+    patch:
+      summary: Rename, re-icon or move a category (expenses and budgets follow a rename)
+      operationId: updateCategory
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: categoryId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 40
+                icon:
+                  type: string
+                  maxLength: 16
+                parentId:
+                  type: string
+                  format: uuid
+                  nullable: true
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryRow'
+    delete:
+      summary: Delete a category; its expenses move to its parent (or Other)
+      operationId: deleteCategory
+      parameters:
+      - name: workspaceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: categoryId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: Deleted
   /workspaces/{workspaceId}/budgets:
     get:
       summary: Monthly budgets with how much of each has been used

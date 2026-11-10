@@ -8,43 +8,26 @@ import {
   restoreExpenseMutation,
 } from '../api/@tanstack/react-query.gen';
 import { formatCurrency } from '../utils/currency';
-import { Search, Filter, ArrowUpDown, Pencil, Trash2 } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, Pencil, Trash2, Settings2, Hash } from 'lucide-react';
 import { EditExpenseModal } from '../features/expenses/components/EditExpenseModal';
 import { CurrencySelect } from '../features/currency/CurrencySelect';
 import { DataTransferMenu } from '../features/data/DataTransferMenu';
 import { RecurringList } from '../features/recurring/RecurringList';
+import { CategoryManager } from '../features/categories/CategoryManager';
+import { CategoryPicker } from '../features/categories/CategoryPicker';
+import { useCategories } from '../features/categories/useCategories';
+import { TagInput } from '../features/tags/TagInput';
 import { useUiStore } from '../store/ui.store';
 import toast from 'react-hot-toast';
-
-const CATEGORY_ICONS: Record<string, string> = {
-  'Food & Drink': '🍽️',
-  Transport: '🚗',
-  Accommodation: '🏠',
-  Entertainment: '🎬',
-  Groceries: '🛒',
-  Utilities: '💡',
-  Health: '❤️',
-  Shopping: '🛍️',
-  Other: '📦',
-};
-
-const CATEGORY_COLORS: Record<string, string> = {
-  'Food & Drink': 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400',
-  Transport: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
-  Accommodation: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
-  Entertainment: 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400',
-  Groceries: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
-  Utilities: 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400',
-  Health: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
-  Shopping: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400',
-  Other: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-900/30 dark:text-zinc-400',
-};
 
 export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [filterCurrency, setFilterCurrency] = useState('ALL');
   const [filterCategory, setFilterCategory] = useState('ALL');
+  const [filterTags, setFilterTags] = useState<string[]>([]);
+  const [managingCategories, setManagingCategories] = useState(false);
+  const { iconOf, styleOf, pathOf } = useCategories(workspaceId);
   const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc'>(
     'date-desc',
   );
@@ -55,6 +38,7 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
       search: search || undefined,
       currency: filterCurrency !== 'ALL' ? filterCurrency : undefined,
       category: filterCategory !== 'ALL' ? filterCategory : undefined,
+      tags: filterTags.length ? filterTags.join(',') : undefined,
       sortBy,
     },
   });
@@ -68,8 +52,6 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
 
   const editingExpenseId = useUiStore((state) => state.editingExpenseId);
   const setEditingExpenseId = useUiStore((state) => state.setEditingExpenseId);
-
-  const categories = Object.keys(CATEGORY_ICONS);
 
   const filtered = expenses; // Backend handles filtering and sorting now
 
@@ -143,21 +125,14 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
               />
             </div>
 
-            <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-1.5 min-w-max">
-              <Filter className="w-4 h-4 text-text-muted" />
-              <select
-                value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
-                className="bg-transparent text-sm text-text-main focus:outline-none cursor-pointer"
-              >
-                <option value="ALL">All Categories</option>
-                {categories.map((c: any) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <CategoryPicker
+              workspaceId={workspaceId}
+              value={filterCategory}
+              onChange={setFilterCategory}
+              allLabel="All categories"
+              onManage={() => setManagingCategories(true)}
+              variant="bar"
+            />
 
             <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-1.5 min-w-max">
               <ArrowUpDown className="w-4 h-4 text-text-muted" />
@@ -175,11 +150,40 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
           </div>
         </div>
 
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <TagInput
+              workspaceId={workspaceId}
+              value={filterTags}
+              onChange={setFilterTags}
+              placeholder="Filter by tag…"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setManagingCategories(true)}
+            className="press inline-flex items-center gap-2 rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-text-main hover:border-primary/50"
+          >
+            <Settings2 className="h-4 w-4" /> Categories
+          </button>
+        </div>
+
         <RecurringList workspaceId={workspaceId} />
 
         <div className="glass-panel rounded-xl overflow-hidden min-h-[400px]">
           {isLoading ? (
-            <div className="p-8 text-center text-text-muted">Loading expenses...</div>
+            <div className="divide-y divide-border" aria-busy="true" aria-label="Loading expenses">
+              {Array.from({ length: 6 }, (_, i) => (
+                <div key={i} className="flex items-center gap-4 px-6 py-4">
+                  <div className="skeleton h-12 w-12 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <div className="skeleton h-4 w-1/3" />
+                    <div className="skeleton h-3 w-1/4" />
+                  </div>
+                  <div className="skeleton h-5 w-20" />
+                </div>
+              ))}
+            </div>
           ) : filtered.length === 0 ? (
             <div className="p-16 text-center text-text-muted flex flex-col items-center">
               <div className="w-16 h-16 rounded-full bg-surface border border-border flex items-center justify-center mb-4">
@@ -190,15 +194,17 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {filtered.map((expense: any) => (
+              {filtered.map((expense: any, index: number) => (
                 <div
                   key={expense.id}
-                  className="px-6 py-4 group hover:bg-surface/50 transition-colors flex items-center gap-4"
+                  style={{ animationDelay: `${Math.min(index, 12) * 25}ms` }}
+                  className="anim-fade px-6 py-4 group hover:bg-surface/50 transition-colors flex items-center gap-4"
                 >
                   <div
-                    className={`w-12 h-12 rounded-full flex items-center justify-center text-xl ${CATEGORY_COLORS[expense.category] || CATEGORY_COLORS['Other']}`}
+                    className="w-12 h-12 rounded-full flex items-center justify-center text-xl"
+                    style={styleOf(expense.category)}
                   >
-                    {CATEGORY_ICONS[expense.category] || CATEGORY_ICONS['Other']}
+                    {iconOf(expense.category)}
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -207,7 +213,7 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
                         {expense.description}
                       </p>
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-surface text-text-muted border border-border">
-                        {expense.category}
+                        {pathOf(expense.category)}
                       </span>
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
                         {expense.splitType}
@@ -224,6 +230,23 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
                       <span>•</span>
                       <span>Paid by {getMemberName(expense.paidBy)}</span>
                     </p>
+                    {expense.tags?.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {expense.tags.map((tag: string) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() =>
+                              setFilterTags((t) => (t.includes(tag) ? t : [...t, tag]))
+                            }
+                            className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary hover:bg-primary/20"
+                          >
+                            <Hash className="h-3 w-3" />
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-6">
@@ -254,6 +277,10 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
           )}
         </div>
       </div>
+
+      {managingCategories && (
+        <CategoryManager workspaceId={workspaceId} onClose={() => setManagingCategories(false)} />
+      )}
 
       {editingExpenseId && editingExpense && (
         <EditExpenseModal

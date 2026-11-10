@@ -44,3 +44,19 @@ export function suggestCategory(...texts: Array<string | null | undefined>): Cat
   const haystack = texts.filter(Boolean).join(' ');
   return RULES.find(([, pattern]) => pattern.test(haystack))?.[0] ?? 'Other';
 }
+
+/** What a new workspace starts with; after that its categories are its own to edit. */
+export const DEFAULT_CATEGORY_ICONS: Record<Category, string> = {
+  'Food & Drink': '🍽️',
+  Transport: '🚗',
+  Accommodation: '🏠',
+  Entertainment: '🎬',
+  Groceries: '🛒',
+  Utilities: '💡',
+  Health: '❤️',
+  Shopping: '🛍️',
+  Other: '📦',
+};
+
+/** The fallback every expense can land in, so it can be neither renamed, moved nor deleted. */
+export const FALLBACK_CATEGORY: Category = 'Other';

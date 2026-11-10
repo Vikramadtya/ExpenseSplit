@@ -5,6 +5,9 @@ import { client } from './client.gen';
 import type {
   AcceptInviteData,
   AcceptInviteResponses,
+  CreateCategoryData,
+  CreateCategoryErrors,
+  CreateCategoryResponses,
   CreateExpenseCommentData,
   CreateExpenseCommentResponses,
   CreateExpenseData,
@@ -21,6 +24,8 @@ import type {
   CreateWorkspaceResponses,
   DeleteBudgetData,
   DeleteBudgetResponses,
+  DeleteCategoryData,
+  DeleteCategoryResponses,
   DeleteCommentData,
   DeleteCommentResponses,
   DeleteExpenseData,
@@ -71,6 +76,8 @@ import type {
   LeaveWorkspaceResponses,
   ListBudgetsData,
   ListBudgetsResponses,
+  ListCategoriesData,
+  ListCategoriesResponses,
   ListCurrenciesData,
   ListCurrenciesResponses,
   ListExpenseCommentsData,
@@ -110,6 +117,8 @@ import type {
   SubscribePushResponses,
   UnsubscribePushData,
   UnsubscribePushResponses,
+  UpdateCategoryData,
+  UpdateCategoryResponses,
   UpdateCurrentUserData,
   UpdateCurrentUserResponses,
   UpdateExpenseData,
@@ -1079,6 +1088,86 @@ export const listTags = <ThrowOnError extends boolean = false>(
     ],
     url: '/workspaces/{workspaceId}/tags',
     ...options,
+  });
+
+/**
+ * The workspace's categories (a flat list; children point at their parent)
+ */
+export const listCategories = <ThrowOnError extends boolean = false>(
+  options: Options<ListCategoriesData, ThrowOnError>,
+): RequestResult<ListCategoriesResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).get<ListCategoriesResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/categories',
+    ...options,
+  });
+
+/**
+ * Add a category, optionally under a top-level parent
+ */
+export const createCategory = <ThrowOnError extends boolean = false>(
+  options: Options<CreateCategoryData, ThrowOnError>,
+): RequestResult<CreateCategoryResponses, CreateCategoryErrors, ThrowOnError> =>
+  (options.client ?? client).post<CreateCategoryResponses, CreateCategoryErrors, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/categories',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Delete a category; its expenses move to its parent (or Other)
+ */
+export const deleteCategory = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteCategoryData, ThrowOnError>,
+): RequestResult<DeleteCategoryResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).delete<DeleteCategoryResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/categories/{categoryId}',
+    ...options,
+  });
+
+/**
+ * Rename, re-icon or move a category (expenses and budgets follow a rename)
+ */
+export const updateCategory = <ThrowOnError extends boolean = false>(
+  options: Options<UpdateCategoryData, ThrowOnError>,
+): RequestResult<UpdateCategoryResponses, unknown, ThrowOnError> =>
+  (options.client ?? client).patch<UpdateCategoryResponses, unknown, ThrowOnError>({
+    security: [
+      {
+        in: 'cookie',
+        name: 'session',
+        type: 'apiKey',
+      },
+    ],
+    url: '/workspaces/{workspaceId}/categories/{categoryId}',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
   });
 
 /**

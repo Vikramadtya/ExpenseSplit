@@ -23,7 +23,12 @@ export class AnalyticsController {
   }
 
   @Get('workspaces/:workspaceId/tags')
-  tags(@Param('workspaceId') workspaceId: string) {
-    return this.analytics.tags(workspaceId);
+  tags(
+    @Param('workspaceId') workspaceId: string,
+    @Query('q') q?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const n = Number.parseInt(limit ?? '', 10);
+    return this.analytics.tags(workspaceId, q, n > 0 ? Math.min(n, 100) : undefined);
   }
 }

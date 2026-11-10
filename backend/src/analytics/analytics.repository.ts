@@ -83,11 +83,19 @@ export class AnalyticsRepository {
   }
 
   /** Tags used in a workspace, most used first (for autocomplete). */
-  async tagUsage(workspaceId: string) {
+  async tagUsage(workspaceId: string, q = '', limit = 100) {
+    const needle = q
+      .trim()
+      .toLowerCase()
+      .replace(/^#/, '')
+      .replace(/[\\%_]/g, '\\$&');
     const rows = await this.db.execute(sql`
       SELECT tag, COUNT(*)::int AS count FROM (
-        SELECT unnest(tags) AS tag FROM expenses WHERE workspace_id = ${workspaceId} AND deleted_at IS NULL
-      ) t GROUP BY tag ORDER BY count DESC, tag LIMIT 100`);
+        SELECT lower(unnest(tags)) AS tag FROM expenses WHERE workspace_id = ${workspaceId} AND deleted_at IS NULL
+      ) t
+      WHERE tag LIKE ${`%${needle}%`}
+      GROUP BY tag
+      ORDER BY (tag LIKE ${`${needle}%`}) DESC, count DESC, tag LIMIT ${limit}`);
     return rows.map((r) => ({ tag: r.tag as string, count: r.count as number }));
   }
 

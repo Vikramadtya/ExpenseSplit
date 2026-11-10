@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { ExpensesService } from './expenses.service';
 import { EventBus } from '../common/events/event-bus';
 import { NotificationsService } from '../notifications/notifications.service';
+import { CategoriesService } from '../categories/categories.service';
 import { BudgetsService } from '../budgets/budgets.service';
 import { SplitStrategyRegistry } from './strategies/split-strategy.registry';
 import { EqualSplitStrategy } from './strategies/equal-split.strategy';
@@ -39,6 +40,9 @@ describe('ExpensesService', () => {
       events,
       { notifyLater: jest.fn() } as unknown as NotificationsService,
       { checkLater: jest.fn() } as unknown as BudgetsService,
+      {
+        resolve: jest.fn(async (_w: string, name: string) => name),
+      } as unknown as CategoriesService,
     );
   });
 

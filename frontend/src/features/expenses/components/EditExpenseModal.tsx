@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { CurrencySelect } from '../../currency/CurrencySelect';
 import { formatCurrency, getCurrencySymbol, inputStep, sameAmount } from '../../../utils/currency';
 import { ExpenseComments } from './ExpenseComments';
-import { ALL_CATEGORIES } from '../../../utils/constants';
+import { CategoryPicker } from '../../categories/CategoryPicker';
+import { TagInput } from '../../tags/TagInput';
 import type { Expense } from '../../../api/types.gen';
 type SplitType = 'EQUAL' | 'EXACT' | 'PERCENTAGE';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -11,7 +12,7 @@ import {
   updateExpenseMutation,
 } from '../../../api/@tanstack/react-query.gen';
 
-import { X, Receipt, Calendar, User, Tag } from 'lucide-react';
+import { X, Receipt, Calendar, User } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -19,18 +20,6 @@ interface Props {
   expense: Expense | null;
   workspaceId: string;
 }
-
-const CATEGORY_ICONS: Record<string, string> = {
-  'Food & Drink': '🍽️',
-  Transport: '🚗',
-  Accommodation: '🏠',
-  Entertainment: '🎬',
-  Groceries: '🛒',
-  Utilities: '💡',
-  Health: '❤️',
-  Shopping: '🛍️',
-  Other: '📦',
-};
 
 export const EditExpenseModal: React.FC<Props> = ({ isOpen, onClose, expense, workspaceId }) => {
   const queryClient = useQueryClient();
@@ -42,6 +31,7 @@ export const EditExpenseModal: React.FC<Props> = ({ isOpen, onClose, expense, wo
   const [amount, setAmount] = useState<number | ''>('');
   const [date, setDate] = useState('');
   const [category, setCategory] = useState<string>('Other');
+  const [tags, setTags] = useState<string[]>([]);
   const [paidBy, setPaidBy] = useState('');
   const [currency, setCurrency] = useState('USD');
   const [splitType, setSplitType] = useState<SplitType>('EQUAL');
@@ -70,6 +60,7 @@ export const EditExpenseModal: React.FC<Props> = ({ isOpen, onClose, expense, wo
       setAmount(expense.amount);
       setDate(expense.date);
       setCategory(expense.category);
+      setTags(expense.tags ?? []);
       setSplitType(expense.splitType as SplitType);
       if (expense.currency) {
         setCurrency(expense.currency);
@@ -118,6 +109,7 @@ export const EditExpenseModal: React.FC<Props> = ({ isOpen, onClose, expense, wo
         paidBy,
         participants,
         category,
+        tags,
         currency,
         exactAmounts:
           splitType === 'EXACT'
@@ -207,21 +199,15 @@ export const EditExpenseModal: React.FC<Props> = ({ isOpen, onClose, expense, wo
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                   Category
                 </label>
-                <div className="relative">
-                  <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none appearance-none"
-                  >
-                    {ALL_CATEGORIES.map((c: any) => (
-                      <option key={c} value={c}>
-                        {CATEGORY_ICONS[c]} {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <CategoryPicker workspaceId={workspaceId} value={category} onChange={setCategory} />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                Tags
+              </label>
+              <TagInput workspaceId={workspaceId} value={tags} onChange={setTags} />
             </div>
 
             <div>

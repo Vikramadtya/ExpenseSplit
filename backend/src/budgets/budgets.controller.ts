@@ -14,12 +14,11 @@ import { z } from 'zod';
 import { currencyCode } from '../common/money/currency-code.schema';
 
 import { Roles } from '../auth/decorators';
-import { CATEGORIES } from '../common/categories';
 import { BudgetsService } from './budgets.service';
 
 export class SetBudgetDto extends createZodDto(
   z.object({
-    category: z.enum(['ALL', ...CATEGORIES]).default('ALL'),
+    category: z.string().trim().min(1).max(40).default('ALL'),
     currency: currencyCode,
     amount: z.number().finite().positive().max(9_999_999_999),
   }),

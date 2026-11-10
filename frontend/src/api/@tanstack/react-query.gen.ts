@@ -11,6 +11,7 @@ import {
 import { client } from '../client.gen';
 import {
   acceptInvite,
+  createCategory,
   createExpense,
   createExpenseComment,
   createGlobalSettlement,
@@ -19,6 +20,7 @@ import {
   createSettlement,
   createWorkspace,
   deleteBudget,
+  deleteCategory,
   deleteComment,
   deleteExpense,
   deleteRecurring,
@@ -44,6 +46,7 @@ import {
   inviteMember,
   leaveWorkspace,
   listBudgets,
+  listCategories,
   listCurrencies,
   listExpenseComments,
   listNotifications,
@@ -64,6 +67,7 @@ import {
   skipRecurring,
   subscribePush,
   unsubscribePush,
+  updateCategory,
   updateCurrentUser,
   updateExpense,
   updateWorkspace,
@@ -72,6 +76,8 @@ import {
 import type {
   AcceptInviteData,
   AcceptInviteResponse,
+  CreateCategoryData,
+  CreateCategoryResponse,
   CreateExpenseCommentData,
   CreateExpenseCommentResponse,
   CreateExpenseData,
@@ -87,6 +93,8 @@ import type {
   CreateWorkspaceResponse,
   DeleteBudgetData,
   DeleteBudgetResponse,
+  DeleteCategoryData,
+  DeleteCategoryResponse,
   DeleteCommentData,
   DeleteCommentResponse,
   DeleteExpenseData,
@@ -137,6 +145,8 @@ import type {
   LeaveWorkspaceResponse,
   ListBudgetsData,
   ListBudgetsResponse,
+  ListCategoriesData,
+  ListCategoriesResponse,
   ListCurrenciesData,
   ListCurrenciesResponse,
   ListExpenseCommentsData,
@@ -174,6 +184,8 @@ import type {
   SubscribePushResponse,
   UnsubscribePushData,
   UnsubscribePushResponse,
+  UpdateCategoryData,
+  UpdateCategoryResponse,
   UpdateCurrentUserData,
   UpdateCurrentUserResponse,
   UpdateExpenseData,
@@ -1483,6 +1495,100 @@ export const listTagsOptions = (options: Options<ListTagsData>) =>
     },
     queryKey: listTagsQueryKey(options),
   });
+
+export const listCategoriesQueryKey = (options: Options<ListCategoriesData>) =>
+  createQueryKey('listCategories', options);
+
+/**
+ * The workspace's categories (a flat list; children point at their parent)
+ */
+export const listCategoriesOptions = (options: Options<ListCategoriesData>) =>
+  queryOptions<
+    ListCategoriesResponse,
+    DefaultError,
+    ListCategoriesResponse,
+    ReturnType<typeof listCategoriesQueryKey>
+  >({
+    queryFn: async ({ queryKey, signal }) => {
+      const { data } = await listCategories({
+        ...options,
+        ...queryKey[0],
+        signal,
+        throwOnError: true,
+      });
+      return data;
+    },
+    queryKey: listCategoriesQueryKey(options),
+  });
+
+/**
+ * Add a category, optionally under a top-level parent
+ */
+export const createCategoryMutation = (
+  options?: Partial<Options<CreateCategoryData>>,
+): UseMutationOptions<CreateCategoryResponse, DefaultError, Options<CreateCategoryData>> => {
+  const mutationOptions: UseMutationOptions<
+    CreateCategoryResponse,
+    DefaultError,
+    Options<CreateCategoryData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await createCategory({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Delete a category; its expenses move to its parent (or Other)
+ */
+export const deleteCategoryMutation = (
+  options?: Partial<Options<DeleteCategoryData>>,
+): UseMutationOptions<DeleteCategoryResponse, DefaultError, Options<DeleteCategoryData>> => {
+  const mutationOptions: UseMutationOptions<
+    DeleteCategoryResponse,
+    DefaultError,
+    Options<DeleteCategoryData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await deleteCategory({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
+
+/**
+ * Rename, re-icon or move a category (expenses and budgets follow a rename)
+ */
+export const updateCategoryMutation = (
+  options?: Partial<Options<UpdateCategoryData>>,
+): UseMutationOptions<UpdateCategoryResponse, DefaultError, Options<UpdateCategoryData>> => {
+  const mutationOptions: UseMutationOptions<
+    UpdateCategoryResponse,
+    DefaultError,
+    Options<UpdateCategoryData>
+  > = {
+    mutationFn: async (fnOptions) => {
+      const { data } = await updateCategory({
+        ...options,
+        ...fnOptions,
+        throwOnError: true,
+      });
+      return data;
+    },
+  };
+  return mutationOptions;
+};
 
 export const listBudgetsQueryKey = (options: Options<ListBudgetsData>) =>
   createQueryKey('listBudgets', options);

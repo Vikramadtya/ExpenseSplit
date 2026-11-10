@@ -1529,6 +1529,121 @@ suite('ExpenseSplit API (integration)', () => {
     });
   });
 
+  describe('categories and tags', () => {
+    let ws: string;
+    const spend = (body: object, as = alice) =>
+      api('post', `/workspaces/${ws}/expenses`, as).send({
+        date: new Date().toISOString(),
+        description: 'Test',
+        amount: 10,
+        payers: [{ userId: alice.id, amount: 10 }],
+        participants: [alice.id],
+        ...body,
+      });
+    const categories = async () =>
+      (await api('get', `/workspaces/${ws}/categories`, alice).expect(200)).body as Array<{
+        id: string;
+        name: string;
+        parentId: string | null;
+        expenseCount: number;
+      }>;
+    const idOf = async (name: string) => (await categories()).find((c) => c.name === name)!.id;
+
+    beforeAll(async () => {
+      ws = (await api('post', '/workspaces', alice).send({ name: 'Categories' })).body.id;
+    });
+
+    it('starts with the defaults and protects "Other"', async () => {
+      const list = await categories();
+      expect(list.map((c) => c.name)).toContain('Food & Drink');
+      const other = list.find((c) => c.name === 'Other')!;
+      await api('patch', `/workspaces/${ws}/categories/${other.id}`, alice)
+        .send({ name: 'Misc' })
+        .expect(400);
+      await api('delete', `/workspaces/${ws}/categories/${other.id}`, alice).expect(400);
+    });
+
+    it('nests one level, rejects duplicates and cycles', async () => {
+      const food = await idOf('Food & Drink');
+      const child = await api('post', `/workspaces/${ws}/categories`, alice)
+        .send({ name: 'Coffee', icon: '☕', parentId: food })
+        .expect(201);
+      await api('post', `/workspaces/${ws}/categories`, alice).send({ name: 'coffee' }).expect(409);
+      await api('post', `/workspaces/${ws}/categories`, alice)
+        .send({ name: 'Espresso', parentId: child.body.id })
+        .expect(400); // too deep
+      await api('patch', `/workspaces/${ws}/categories/${food}`, alice)
+        .send({ parentId: child.body.id })
+        .expect(400); // a parent cannot move under its own child
+    });
+
+    it('filters a parent by its whole branch, and renaming carries the expenses', async () => {
+      await spend({ description: 'Latte', category: 'coffee' }).expect(201); // matched case-insensitively
+      await spend({ description: 'Lunch', category: 'Food & Drink' }).expect(201);
+      await spend({ description: 'Bus', category: 'Transport' }).expect(201);
+      await spend({ description: 'Mystery', category: 'Nonexistent' }).expect(201);
+
+      const names = async (q: string) =>
+        (await api('get', `/workspaces/${ws}/expenses?${q}`, alice).expect(200)).body
+          .map((e: { description: string }) => e.description)
+          .sort();
+      expect(await names('category=Food%20%26%20Drink')).toEqual(['Latte', 'Lunch']);
+      expect(await names('category=Coffee')).toEqual(['Latte']);
+      expect(await names('category=Other')).toEqual(['Mystery']);
+
+      await api('patch', `/workspaces/${ws}/categories/${await idOf('Coffee')}`, alice)
+        .send({ name: 'Cafés' })
+        .expect(200);
+      expect(await names('category=Caf%C3%A9s')).toEqual(['Latte']);
+    });
+
+    it('budgets on a parent count the sub-categories, and need a real category', async () => {
+      const b = await api('put', `/workspaces/${ws}/budgets`, alice)
+        .send({ category: 'food & drink', currency: 'USD', amount: 100 })
+        .expect(200);
+      expect(b.body.category).toBe('Food & Drink');
+      expect(b.body.spent).toBe(20); // Lunch + the café latte
+    });
+
+    it('deleting moves expenses to the parent and children to the top level', async () => {
+      const cafes = await idOf('Cafés');
+      await api('delete', `/workspaces/${ws}/categories/${cafes}`, alice).expect(204);
+      const list = await categories();
+      expect(list.find((c) => c.name === 'Food & Drink')!.expenseCount).toBe(2);
+
+      const food = await idOf('Food & Drink');
+      const kid = await api('post', `/workspaces/${ws}/categories`, alice)
+        .send({ name: 'Snacks', parentId: food })
+        .expect(201);
+      await api('delete', `/workspaces/${ws}/categories/${food}`, alice).expect(204);
+      const after = await categories();
+      expect(after.find((c) => c.id === kid.body.id)!.parentId).toBeNull();
+      expect(after.find((c) => c.name === 'Other')!.expenseCount).toBe(3); // Lunch, Latte and Mystery
+    });
+
+    it('stores tags lower-case without the hash and suggests them as you type', async () => {
+      await spend({ tags: ['#Trip', 'trip', 'Dinner'] }).expect(201);
+      await spend({ tags: ['trip2026'] }).expect(201);
+      await spend({ tags: ['TRIP'] }).expect(201);
+      const all = (await api('get', `/workspaces/${ws}/tags`, alice).expect(200)).body;
+      expect(all[0]).toEqual({ tag: 'trip', count: 2 });
+
+      const typed = (await api('get', `/workspaces/${ws}/tags?q=Tri`, alice).expect(200)).body;
+      expect(typed.map((t: { tag: string }) => t.tag)).toEqual(['trip', 'trip2026']);
+      const inner = (await api('get', `/workspaces/${ws}/tags?q=nner`, alice).expect(200)).body;
+      expect(inner.map((t: { tag: string }) => t.tag)).toEqual(['dinner']);
+      const wildcard = (await api('get', `/workspaces/${ws}/tags?q=%25`, alice).expect(200)).body;
+      expect(wildcard).toEqual([]);
+      expect(
+        (await api('get', `/workspaces/${ws}/tags?limit=1`, alice).expect(200)).body,
+      ).toHaveLength(1);
+
+      const found = (await api('get', `/workspaces/${ws}/expenses?tags=Trip`, alice).expect(200))
+        .body;
+      expect(found).toHaveLength(2);
+    });
+  });
+
   describe('currencies and decimal places', () => {
     let money: string;
     const date = () => new Date().toISOString();

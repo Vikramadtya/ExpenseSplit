@@ -1,18 +1,31 @@
-import React, { useState, useEffect } from 'react';
-import { CurrencySelect } from '../../currency/CurrencySelect';
-import { formatCurrency, getCurrencySymbol, inputStep, sameAmount } from '../../../utils/currency';
-import { ALL_CATEGORIES } from '../../../utils/constants';
-type SplitType = 'EQUAL' | 'EXACT' | 'PERCENTAGE';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Calendar, Check, Loader2, Repeat, Users } from 'lucide-react';
+import toast from 'react-hot-toast';
 import {
-  getWorkspaceMembersOptions,
-  getWorkspaceOptions,
-  listTagsOptions,
   createExpenseMutation,
   createRecurringMutation,
+  getCurrentUserOptions,
+  getWorkspaceMembersOptions,
+  getWorkspaceOptions,
 } from '../../../api/@tanstack/react-query.gen';
+import { Sheet } from '../../../components/ui/Sheet';
+import { CategoryManager } from '../../categories/CategoryManager';
+import { CategoryPicker } from '../../categories/CategoryPicker';
+import { suggestCategoryName } from '../../categories/suggest';
+import { categoryStyle, useCategories } from '../../categories/useCategories';
+import { CurrencySelect } from '../../currency/CurrencySelect';
+import { TagInput } from '../../tags/TagInput';
+import {
+  fractionDigits,
+  formatCurrency,
+  getCurrencySymbol,
+  inputStep,
+  sameAmount,
+} from '../../../utils/currency';
 
-import { X, Receipt, Calendar, User, Tag } from 'lucide-react';
+type SplitType = 'EQUAL' | 'EXACT' | 'PERCENTAGE';
+type Repeat = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY';
 
 interface Props {
   isOpen: boolean;
@@ -20,539 +33,572 @@ interface Props {
   workspaceId: string;
 }
 
-const CATEGORY_ICONS: Record<string, string> = {
-  'Food & Drink': '🍽️',
-  Transport: '🚗',
-  Accommodation: '🏠',
-  Entertainment: '🎬',
-  Groceries: '🛒',
-  Utilities: '💡',
-  Health: '❤️',
-  Shopping: '🛍️',
-  Other: '📦',
+const SPLIT_LABELS: Record<SplitType, string> = {
+  EQUAL: 'Equally',
+  EXACT: 'Exact amounts',
+  PERCENTAGE: 'Percentages',
+};
+const REPEAT_LABELS: Record<Repeat, string> = {
+  NONE: 'Never repeats',
+  DAILY: 'Every day',
+  WEEKLY: 'Every week',
+  MONTHLY: 'Every month',
 };
 
-export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId }) => {
-  const queryClient = useQueryClient();
+const todayISO = () => new Date().toISOString().split('T')[0];
 
+const friendlyDate = (iso: string) => {
+  const today = todayISO();
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString().split('T')[0];
+  if (iso === today) return 'Today';
+  if (iso === yesterday) return 'Yesterday';
+  return new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
+
+/** Keeps only what the currency can hold: digits and, if it has decimals, one separator. */
+const cleanAmount = (raw: string, currency: string) => {
+  const digits = fractionDigits(currency);
+  const [whole, ...rest] = raw
+    .replace(',', '.')
+    .replace(/[^\d.]/g, '')
+    .split('.');
+  if (digits === 0 || rest.length === 0) return whole;
+  return `${whole}.${rest.join('').slice(0, digits)}`;
+};
+
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+
+function Avatar({ name }: { name: string }) {
+  return (
+    <span
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+      style={categoryStyle(name)}
+    >
+      {initials(name)}
+    </span>
+  );
+}
+
+/** A pill whose face shows the current choice while a transparent native select does the work. */
+function SelectPill({
+  icon,
+  label,
+  value,
+  onChange,
+  options,
+  ariaLabel,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<[string, string]>;
+  ariaLabel: string;
+}) {
+  return (
+    <label className="pill relative cursor-pointer">
+      {icon}
+      <span className="max-w-[9rem] truncate">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={ariaLabel}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+      >
+        {options.map(([v, text]) => (
+          <option key={v} value={v}>
+            {text}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+const Section = ({
+  title,
+  aside,
+  children,
+}: {
+  title: string;
+  aside?: React.ReactNode;
+  children: React.ReactNode;
+}) => (
+  <section className="space-y-2.5">
+    <div className="flex items-center justify-between">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">{title}</h3>
+      {aside}
+    </div>
+    {children}
+  </section>
+);
+
+export const AddExpenseModal: React.FC<Props> = ({ isOpen, onClose, workspaceId }) =>
+  isOpen ? <AddExpenseSheet onClose={onClose} workspaceId={workspaceId} /> : null;
+
+function AddExpenseSheet({ onClose, workspaceId }: Omit<Props, 'isOpen'>) {
+  const queryClient = useQueryClient();
   const { data: members = [] } = useQuery(getWorkspaceMembersOptions({ path: { workspaceId } }));
   const { data: workspace } = useQuery(getWorkspaceOptions({ path: { workspaceId } }));
-  const { data: knownTags = [] } = useQuery(listTagsOptions({ path: { workspaceId } }));
-  const mutation = useMutation(createExpenseMutation());
-  const recurringMutation = useMutation(createRecurringMutation());
-  const [repeat, setRepeat] = useState<'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'>('NONE');
+  const { data: me } = useQuery(getCurrentUserOptions());
+  const { categories } = useCategories(workspaceId);
+  const createExpense = useMutation(createExpenseMutation());
+  const createRecurring = useMutation(createRecurringMutation());
 
+  const [amountText, setAmountText] = useState('');
+  const [currency, setCurrency] = useState(workspace?.defaultCurrency || 'USD');
   const [description, setDescription] = useState('');
-  const [amount, setAmount] = useState<number | ''>('');
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [category, setCategory] = useState<string>('Other');
+  const [date, setDate] = useState(todayISO);
+  const [category, setCategory] = useState('Other');
+  const [categoryTouched, setCategoryTouched] = useState(false);
   const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState('');
+  const [repeat, setRepeat] = useState<Repeat>('NONE');
+  const [managing, setManaging] = useState(false);
+
   const [paidBy, setPaidBy] = useState('');
-  const [currency, setCurrency] = useState('USD');
+  const [multiplePayers, setMultiplePayers] = useState(false);
+  const [payerAmounts, setPayerAmounts] = useState<Record<string, number>>({});
 
   const [splitType, setSplitType] = useState<SplitType>('EQUAL');
   const [participants, setParticipants] = useState<string[]>([]);
-
-  const [isMultiplePayers, setIsMultiplePayers] = useState(false);
-  const [payerAmounts, setPayerAmounts] = useState<Record<string, number>>({});
-
   const [exactAmounts, setExactAmounts] = useState<Record<string, number>>({});
   const [percentages, setPercentages] = useState<Record<string, number>>({});
 
+  // Members and the workspace load after the sheet opens; fill the defaults once, when they do.
+  const seeded = useRef({ members: false, currency: false });
   useEffect(() => {
-    if (isOpen) {
-      setPaidBy(members[0]?.id || '');
+    if (!seeded.current.members && members.length > 0) {
+      seeded.current.members = true;
       setParticipants(members.map((m) => m.id));
-      setExactAmounts({});
-      setPercentages({});
-      setDescription('');
-      setAmount('');
-      setDate(new Date().toISOString().split('T')[0]);
-      setCategory('Other');
-      setTags([]);
-      setTagInput('');
-      setSplitType('EQUAL');
-      setCurrency(workspace?.defaultCurrency || 'USD');
-      setIsMultiplePayers(false);
-      setPayerAmounts({});
+      setPaidBy(me?.id && members.some((m) => m.id === me.id) ? me.id : members[0].id);
     }
-  }, [isOpen, members, workspace]);
+    if (!seeded.current.currency && workspace?.defaultCurrency) {
+      seeded.current.currency = true;
+      setCurrency(workspace.defaultCurrency);
+    }
+  }, [members, workspace, me]);
 
-  if (!isOpen) return null;
+  // Until the user picks one, the description chooses the category.
+  const suggested = useMemo(
+    () =>
+      suggestCategoryName(
+        description,
+        categories.map((c) => c.name),
+      ),
+    [description, categories],
+  );
+  useEffect(() => {
+    if (!categoryTouched && suggested) setCategory(suggested);
+  }, [suggested, categoryTouched]);
 
-  const handleParticipantToggle = (memberId: string) => {
-    setParticipants((prev) =>
-      prev.includes(memberId) ? prev.filter((id) => id !== memberId) : [...prev, memberId],
-    );
-  };
-
-  const handleExactAmountChange = (memberId: string, value: string) => {
-    setExactAmounts((prev) => ({ ...prev, [memberId]: parseFloat(value) || 0 }));
-  };
-
-  const handlePercentageChange = (memberId: string, value: string) => {
-    setPercentages((prev) => ({ ...prev, [memberId]: parseFloat(value) || 0 }));
-  };
+  const amount = Number.parseFloat(amountText) || 0;
+  const nameOf = (id: string) =>
+    id === me?.id ? 'You' : (members.find((m) => m.id === id)?.name ?? '?');
 
   const exactSum = participants.reduce((sum, id) => sum + (exactAmounts[id] || 0), 0);
   const percentSum = participants.reduce((sum, id) => sum + (percentages[id] || 0), 0);
+  const payerSum = Object.values(payerAmounts).reduce((sum, a) => sum + (a || 0), 0);
 
-  const numAmount = typeof amount === 'number' ? amount : 0;
-
-  const handlePayerAmountChange = (memberId: string, value: string) => {
-    setPayerAmounts((prev) => ({ ...prev, [memberId]: parseFloat(value) || 0 }));
-  };
-
-  const payerSum = Object.values(payerAmounts).reduce((sum, amt) => sum + (amt || 0), 0);
-  const payerValid = !isMultiplePayers || sameAmount(payerSum, numAmount, currency);
-
-  const exactValid = sameAmount(exactSum, numAmount, currency);
-  const percentValid = Math.abs(percentSum - 100) < 0.01;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!description || !amount || (!isMultiplePayers && !paidBy) || participants.length === 0)
-      return;
-
-    if (splitType === 'EXACT' && !exactValid) return;
-    if (splitType === 'PERCENTAGE' && !percentValid) return;
-    if (isMultiplePayers && !payerValid) return;
-
-    const payers = isMultiplePayers
-      ? Object.entries(payerAmounts)
-          .filter(([_, amt]) => amt > 0)
-          .map(([userId, amount]) => ({ userId, amount }))
-      : [{ userId: paidBy, amount: Number(amount) }];
-
-    if (repeat !== 'NONE') {
-      // A repeating expense is a rule: the server creates this one now and the next ones on schedule.
-      await recurringMutation.mutateAsync({
-        path: { workspaceId },
-        body: {
-          description,
-          amount: Number(amount),
-          currency,
-          startDate: new Date(date).toISOString(),
-          interval: repeat,
-          splitType,
-          tags,
-          payers,
-          participants,
-          exactAmounts:
-            splitType === 'EXACT'
-              ? Object.entries(exactAmounts).map(([userId, amount]) => ({ userId, amount }))
-              : undefined,
-          percentages:
-            splitType === 'PERCENTAGE'
-              ? Object.entries(percentages).map(([userId, percentage]) => ({ userId, percentage }))
-              : undefined,
-        } as any,
-      });
-      queryClient.invalidateQueries();
-      onClose();
-      return;
+  const problem = (() => {
+    if (!amount) return 'Enter an amount';
+    if (!description.trim()) return 'Add a description';
+    if (participants.length === 0) return 'Pick who shares this';
+    if (multiplePayers && !sameAmount(payerSum, amount, currency)) {
+      const diff = amount - payerSum;
+      return `${formatCurrency(Math.abs(diff), currency)} ${diff > 0 ? 'left to assign to payers' : 'over'}`;
     }
+    if (splitType === 'EXACT' && !sameAmount(exactSum, amount, currency)) {
+      const diff = amount - exactSum;
+      return `${formatCurrency(Math.abs(diff), currency)} ${diff > 0 ? 'left to split' : 'over'}`;
+    }
+    if (splitType === 'PERCENTAGE' && Math.abs(percentSum - 100) >= 0.01) {
+      return `${Math.abs(100 - percentSum).toFixed(0)}% ${percentSum < 100 ? 'left' : 'over'}`;
+    }
+    return null;
+  })();
 
-    await mutation.mutateAsync({
-      path: { workspaceId },
-      headers: { 'Idempotency-Key': crypto.randomUUID() },
-      body: {
-        description,
-        amount: Number(amount),
-        date,
-        splitType,
-        payers,
-        category,
-        tags,
-        currency,
-        type: 'EXPENSE',
-        participants,
-        exactAmounts:
-          splitType === 'EXACT'
-            ? Object.entries(exactAmounts).map(([userId, amount]) => ({ userId, amount }))
-            : undefined,
-        percentages:
-          splitType === 'PERCENTAGE'
-            ? Object.entries(percentages).map(([userId, percentage]) => ({ userId, percentage }))
-            : undefined,
-      },
-    });
+  const summary =
+    splitType === 'EQUAL' && participants.length > 0 && amount
+      ? `Split equally between ${participants.length} · ${formatCurrency(amount / participants.length, currency)} each`
+      : amount
+        ? `${formatCurrency(amount, currency)} · ${SPLIT_LABELS[splitType].toLowerCase()}`
+        : 'Add an amount to split';
 
-    queryClient.invalidateQueries();
-    onClose();
+  const submit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (problem || createExpense.isPending || createRecurring.isPending) return;
+
+    const payers = multiplePayers
+      ? Object.entries(payerAmounts)
+          .filter(([, a]) => a > 0)
+          .map(([userId, a]) => ({ userId, amount: a }))
+      : [{ userId: paidBy, amount }];
+    const exact =
+      splitType === 'EXACT'
+        ? participants.map((userId) => ({ userId, amount: exactAmounts[userId] || 0 }))
+        : undefined;
+    const percent =
+      splitType === 'PERCENTAGE'
+        ? participants.map((userId) => ({ userId, percentage: percentages[userId] || 0 }))
+        : undefined;
+
+    try {
+      if (repeat !== 'NONE') {
+        // A repeating expense is a rule: the server creates this one now and the next ones on schedule.
+        await createRecurring.mutateAsync({
+          path: { workspaceId },
+          body: {
+            description: description.trim(),
+            amount,
+            currency,
+            startDate: new Date(date).toISOString(),
+            interval: repeat,
+            splitType,
+            tags,
+            payers,
+            participants,
+            exactAmounts: exact,
+            percentages: percent,
+          } as never,
+        });
+      } else {
+        await createExpense.mutateAsync({
+          path: { workspaceId },
+          headers: { 'Idempotency-Key': crypto.randomUUID() },
+          body: {
+            description: description.trim(),
+            amount,
+            date,
+            splitType,
+            payers,
+            category,
+            tags,
+            currency,
+            type: 'EXPENSE',
+            participants,
+            exactAmounts: exact,
+            percentages: percent,
+          },
+        });
+      }
+      await queryClient.invalidateQueries();
+      toast.success(repeat === 'NONE' ? 'Expense added' : 'Recurring expense set up');
+      onClose();
+    } catch {
+      toast.error('Could not save the expense. Please try again.');
+    }
   };
+
+  const pending = createExpense.isPending || createRecurring.isPending;
+  const symbol = getCurrencySymbol(currency);
+
+  const numberBox = (
+    value: number | undefined,
+    onChange: (n: number) => void,
+    prefix?: string,
+    suffix?: string,
+  ) => (
+    <div className="relative w-28 shrink-0">
+      {prefix && (
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">
+          {prefix}
+        </span>
+      )}
+      <input
+        type="number"
+        inputMode="decimal"
+        step={suffix ? 1 : inputStep(currency)}
+        min="0"
+        value={value || ''}
+        onChange={(e) => onChange(Number.parseFloat(e.target.value) || 0)}
+        placeholder="0"
+        className={`w-full rounded-xl border border-border bg-background py-1.5 text-right text-sm text-text-main outline-none focus:border-primary focus:ring-2 focus:ring-primary/30 ${prefix ? 'pl-7' : 'pl-3'} ${suffix ? 'pr-7' : 'pr-3'}`}
+      />
+      {suffix && (
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">
+          {suffix}
+        </span>
+      )}
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-zinc-200 dark:border-zinc-800">
-        <div className="sticky top-0 z-10 flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md">
-          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-            <Receipt className="w-5 h-5 text-indigo-500" />
-            Add Expense
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  Description
-                </label>
+    <>
+      <form
+        onSubmit={submit}
+        onKeyDown={(e) => {
+          // The sheet renders in a portal, outside this form's DOM, so Enter is handled here.
+          const target = e.target as HTMLInputElement;
+          const enterInField =
+            e.key === 'Enter' && target.tagName === 'INPUT' && target.type !== 'date';
+          if (
+            e.key === 'Enter' &&
+            (e.metaKey || e.ctrlKey || enterInField) &&
+            !e.defaultPrevented
+          ) {
+            e.preventDefault();
+            void submit();
+          }
+        }}
+      >
+        <Sheet
+          title="New expense"
+          subtitle={workspace?.name}
+          onClose={onClose}
+          footer={
+            <div className="space-y-3">
+              <p
+                aria-live="polite"
+                className={`text-center text-sm ${problem ? 'text-amber-600 dark:text-amber-400' : 'text-text-muted'}`}
+              >
+                {problem ?? summary}
+              </p>
+              <button
+                type="button"
+                onClick={() => void submit()}
+                disabled={!!problem || pending}
+                className="press flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-base font-semibold text-white shadow-[0_8px_24px_-8px_rgba(99,102,241,0.7)] transition-all hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+              >
+                {pending ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Check className="h-5 w-5" />
+                )}
+                {pending
+                  ? 'Saving…'
+                  : repeat === 'NONE'
+                    ? 'Add expense'
+                    : 'Start recurring expense'}
+                {!pending && (
+                  <kbd className="ml-1 hidden rounded bg-white/20 px-1.5 py-0.5 text-xs font-normal sm:inline">
+                    ⌘↵
+                  </kbd>
+                )}
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-7 pt-1">
+            <div className="flex flex-col items-center gap-3 py-2">
+              <div className="flex items-baseline justify-center gap-1">
+                <span className="font-display text-3xl text-text-muted">{symbol}</span>
                 <input
-                  type="text"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Dinner, Uber, etc."
-                  className="w-full rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                  required
+                  autoFocus
+                  inputMode="decimal"
+                  value={amountText}
+                  onChange={(e) => setAmountText(cleanAmount(e.target.value, currency))}
+                  placeholder="0"
+                  aria-label="Amount"
+                  size={Math.max(amountText.length, 1)}
+                  className="min-w-[1ch] max-w-full bg-transparent text-center font-display text-6xl font-semibold tabular-nums text-text-main outline-none focus-visible:outline-none placeholder:text-border"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  Amount
-                </label>
-                <div className="flex gap-2">
-                  <CurrencySelect
-                    value={currency}
-                    onChange={setCurrency}
-                    className="w-28 shrink-0 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                  />
-                  <input
-                    type="number"
-                    step={inputStep(currency)}
-                    min={inputStep(currency)}
-                    value={amount}
-                    onChange={(e) => setAmount(parseFloat(e.target.value) || '')}
-                    className="w-full min-w-0 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                    required
-                  />
-                </div>
-              </div>
+              <CurrencySelect
+                value={currency}
+                onChange={(c) => {
+                  setCurrency(c);
+                  setAmountText((t) => cleanAmount(t, c));
+                }}
+                className="cursor-pointer rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-text-muted outline-none hover:border-primary/50"
+              />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  Date
-                </label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                  <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="w-full rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                    required
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  Repeats
-                </label>
-                <select
-                  value={repeat}
-                  onChange={(e) => setRepeat(e.target.value as typeof repeat)}
-                  className="w-full rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                >
-                  <option value="NONE">Never</option>
-                  <option value="DAILY">Every day</option>
-                  <option value="WEEKLY">Every week</option>
-                  <option value="MONTHLY">Every month</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  Category
-                </label>
-                <div className="relative">
-                  <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none appearance-none"
-                  >
-                    {ALL_CATEGORIES.map((c: any) => (
-                      <option key={c} value={c}>
-                        {CATEGORY_ICONS[c]} {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
+            <input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="What was it for?"
+              aria-label="Description"
+              maxLength={255}
+              className="w-full rounded-2xl border border-border bg-surface px-4 py-3.5 text-base text-text-main outline-none transition-shadow placeholder:text-text-muted focus:border-primary/60 focus:ring-2 focus:ring-primary/30"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                Tags (press Enter to add)
+            <div className="flex flex-wrap gap-2">
+              <CategoryPicker
+                workspaceId={workspaceId}
+                value={category}
+                onChange={(c) => {
+                  setCategory(c);
+                  setCategoryTouched(true);
+                }}
+                onManage={() => setManaging(true)}
+              />
+              <label className="pill relative cursor-pointer">
+                <Calendar className="h-4 w-4 text-text-muted" />
+                {friendlyDate(date)}
+                <input
+                  type="date"
+                  value={date}
+                  max="2100-01-01"
+                  onChange={(e) => e.target.value && setDate(e.target.value)}
+                  aria-label="Date"
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
               </label>
-              <div className="relative">
-                <Tag className="absolute left-3 top-3 w-4 h-4 text-zinc-500" />
-                <div className="w-full min-h-[46px] rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 pl-10 pr-2 py-1.5 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 outline-none flex flex-wrap gap-2 items-center">
-                  {tags.map((tag, i) => (
-                    <span
-                      key={i}
-                      className="flex items-center gap-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 px-2 py-1 rounded-md text-xs font-medium border border-indigo-200 dark:border-indigo-800"
-                    >
-                      #{tag}
-                      <button
-                        type="button"
-                        onClick={() => setTags((prev) => prev.filter((_, index) => index !== i))}
-                        className="hover:text-indigo-900 dark:hover:text-indigo-200"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                  <input
-                    type="text"
-                    list="known-tags"
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ',') {
-                        e.preventDefault();
-                        const newTag = tagInput.trim().replace(/^#/, '');
-                        if (newTag && !tags.includes(newTag)) {
-                          setTags((prev) => [...prev, newTag]);
-                        }
-                        setTagInput('');
-                      } else if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
-                        setTags((prev) => prev.slice(0, -1));
-                      }
-                    }}
-                    placeholder={tags.length === 0 ? 'trip2024, dinner...' : ''}
-                    className="flex-1 bg-transparent min-w-[120px] outline-none text-sm py-1"
-                  />
-                  <datalist id="known-tags">
-                    {knownTags
-                      .filter((t) => !tags.includes(t.tag))
-                      .map((t) => (
-                        <option key={t.tag} value={t.tag} />
-                      ))}
-                  </datalist>
-                </div>
-              </div>
+              <SelectPill
+                icon={<Repeat className="h-4 w-4 text-text-muted" />}
+                label={REPEAT_LABELS[repeat]}
+                value={repeat}
+                onChange={(v) => setRepeat(v as Repeat)}
+                options={Object.entries(REPEAT_LABELS)}
+                ariaLabel="Repeats"
+              />
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                  Paid By
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setIsMultiplePayers(!isMultiplePayers)}
-                  className="text-xs text-indigo-500 hover:text-indigo-600 font-medium"
-                >
-                  {isMultiplePayers ? 'Single Payer' : 'Multiple Payers'}
-                </button>
-              </div>
+            <Section title="Tags">
+              <TagInput
+                workspaceId={workspaceId}
+                value={tags}
+                onChange={setTags}
+                placeholder="trip, dinner, rent…"
+              />
+            </Section>
 
-              {!isMultiplePayers ? (
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                  <select
-                    value={paidBy}
-                    onChange={(e) => setPaidBy(e.target.value)}
-                    className="w-full rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                    required={!isMultiplePayers}
-                  >
-                    {members.map((m: any) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <div className="space-y-2 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-700">
-                  {members.map((m: any) => (
+            <Section title="Paid by">
+              <div className="flex flex-wrap gap-2">
+                <SelectPill
+                  icon={<Users className="h-4 w-4 text-text-muted" />}
+                  label={multiplePayers ? 'Multiple people' : `${nameOf(paidBy)} paid`}
+                  value={multiplePayers ? '__multiple__' : paidBy}
+                  onChange={(v) => {
+                    if (v === '__multiple__') setMultiplePayers(true);
+                    else {
+                      setMultiplePayers(false);
+                      setPaidBy(v);
+                    }
+                  }}
+                  options={[
+                    ...members.map((m): [string, string] => [
+                      m.id,
+                      m.id === me?.id ? 'You' : m.name,
+                    ]),
+                    ['__multiple__', 'Multiple people…'],
+                  ]}
+                  ariaLabel="Paid by"
+                />
+              </div>
+              {multiplePayers && (
+                <div className="anim-pop space-y-2 rounded-2xl border border-border bg-surface p-3">
+                  {members.map((m) => (
                     <div key={m.id} className="flex items-center gap-3">
-                      <span className="text-sm flex-1 text-zinc-700 dark:text-zinc-300 truncate">
-                        {m.name}
-                      </span>
-                      <div className="relative w-24">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 text-xs">
-                          {getCurrencySymbol(currency)}
-                        </span>
-                        <input
-                          type="number"
-                          step={inputStep(currency)}
-                          min="0"
-                          value={payerAmounts[m.id] || ''}
-                          onChange={(e) => handlePayerAmountChange(m.id, e.target.value)}
-                          className="w-full text-sm rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 py-1 pl-7 pr-2 focus:ring-1 focus:ring-indigo-500 outline-none"
-                          placeholder="0.00"
-                        />
-                      </div>
+                      <Avatar name={m.name} />
+                      <span className="flex-1 truncate text-sm text-text-main">{nameOf(m.id)}</span>
+                      {numberBox(
+                        payerAmounts[m.id],
+                        (n) => setPayerAmounts((p) => ({ ...p, [m.id]: n })),
+                        symbol,
+                      )}
                     </div>
                   ))}
-                  <div
-                    className={`mt-2 text-xs p-2 rounded-md ${payerValid ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}
-                  >
-                    Paid: {formatCurrency(payerSum, currency)} /{' '}
-                    {formatCurrency(numAmount, currency)} {payerValid ? '✓' : '✗'}
-                  </div>
                 </div>
               )}
-            </div>
+            </Section>
 
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                Split Type
-              </label>
-              <div className="flex gap-2 p-1 bg-zinc-100 dark:bg-zinc-800 rounded-xl">
-                {(['EQUAL', 'EXACT', 'PERCENTAGE'] as SplitType[]).map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => setSplitType(type)}
-                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${splitType === type ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
-                  >
-                    {type}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                  Participants
-                </label>
-                <div className="text-xs text-zinc-500">
+            <Section
+              title="Split"
+              aside={
+                <span className="text-xs text-text-muted">
                   <button
                     type="button"
-                    onClick={() => setParticipants(members.map((m: any) => m.id))}
-                    className="hover:text-indigo-500 mr-2"
+                    onClick={() => setParticipants(members.map((m) => m.id))}
+                    className="hover:text-primary"
                   >
-                    All
+                    Everyone
                   </button>
+                  {' · '}
                   <button
                     type="button"
                     onClick={() => setParticipants([])}
-                    className="hover:text-indigo-500"
+                    className="hover:text-primary"
                   >
-                    None
+                    Nobody
                   </button>
-                </div>
-              </div>
-              <div className="space-y-3">
-                {members.map((m: any) => (
-                  <div key={m.id} className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleParticipantToggle(m.id)}
-                      className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${participants.includes(m.id) ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-zinc-300 dark:border-zinc-600'}`}
-                    >
-                      {participants.includes(m.id) && (
-                        <svg
-                          className="w-3.5 h-3.5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={3}
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                      )}
-                    </button>
-                    <span className="text-sm flex-1 text-zinc-700 dark:text-zinc-300">
-                      {m.name}
-                    </span>
-
-                    {participants.includes(m.id) && splitType === 'EXACT' && (
-                      <div className="relative w-24">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 text-xs">
-                          {getCurrencySymbol(currency)}
-                        </span>
-                        <input
-                          type="number"
-                          step={inputStep(currency)}
-                          min="0"
-                          value={exactAmounts[m.id] || ''}
-                          onChange={(e) => handleExactAmountChange(m.id, e.target.value)}
-                          className="w-full text-sm rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 py-1 pl-7 pr-2 focus:ring-1 focus:ring-indigo-500 outline-none"
-                          placeholder="0.00"
-                        />
-                      </div>
-                    )}
-
-                    {participants.includes(m.id) && splitType === 'PERCENTAGE' && (
-                      <div className="relative w-24">
-                        <input
-                          type="number"
-                          step="1"
-                          min="0"
-                          max="100"
-                          value={percentages[m.id] || ''}
-                          onChange={(e) => handlePercentageChange(m.id, e.target.value)}
-                          className="w-full text-sm rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 py-1 px-2 pr-6 focus:ring-1 focus:ring-indigo-500 outline-none text-right"
-                          placeholder="0"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">
-                          %
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                </span>
+              }
+            >
+              <div role="tablist" className="grid grid-cols-3 gap-1 rounded-2xl bg-surface p-1">
+                {(Object.keys(SPLIT_LABELS) as SplitType[]).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    role="tab"
+                    aria-selected={splitType === type}
+                    onClick={() => setSplitType(type)}
+                    className={`press rounded-xl py-2 text-sm font-medium transition-all ${splitType === type ? 'bg-background text-primary shadow-sm' : 'text-text-muted hover:text-text-main'}`}
+                  >
+                    {SPLIT_LABELS[type]}
+                  </button>
                 ))}
               </div>
 
-              {splitType === 'EXACT' && participants.length > 0 && (
-                <div
-                  className={`mt-3 text-sm p-2 rounded-lg ${exactValid ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}
-                >
-                  Sum: {formatCurrency(exactSum, currency)} / {formatCurrency(numAmount, currency)}{' '}
-                  {exactValid ? '✓' : '✗'}
-                </div>
-              )}
-              {splitType === 'PERCENTAGE' && participants.length > 0 && (
-                <div
-                  className={`mt-3 text-sm p-2 rounded-lg ${percentValid ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}
-                >
-                  Total: {percentSum.toFixed(0)}% / 100% {percentValid ? '✓' : '✗'}
-                </div>
-              )}
-            </div>
+              <ul className="divide-y divide-border/60">
+                {members.map((m) => {
+                  const on = participants.includes(m.id);
+                  return (
+                    <li key={m.id} className="flex items-center gap-3 py-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setParticipants((p) =>
+                            p.includes(m.id) ? p.filter((id) => id !== m.id) : [...p, m.id],
+                          )
+                        }
+                        aria-pressed={on}
+                        aria-label={`${on ? 'Remove' : 'Include'} ${m.name}`}
+                        className="press flex flex-1 items-center gap-3 text-left"
+                      >
+                        <span className="relative">
+                          <Avatar name={m.name} />
+                          <span
+                            className={`absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-background text-white transition-all ${on ? 'scale-100 bg-primary' : 'scale-0'}`}
+                          >
+                            <Check className="h-2.5 w-2.5" strokeWidth={4} />
+                          </span>
+                        </span>
+                        <span
+                          className={`truncate text-sm ${on ? 'text-text-main' : 'text-text-muted'}`}
+                        >
+                          {nameOf(m.id)}
+                        </span>
+                      </button>
+                      {on && splitType === 'EQUAL' && amount > 0 && (
+                        <span className="text-sm tabular-nums text-text-muted">
+                          {formatCurrency(amount / participants.length, currency)}
+                        </span>
+                      )}
+                      {on &&
+                        splitType === 'EXACT' &&
+                        numberBox(
+                          exactAmounts[m.id],
+                          (n) => setExactAmounts((p) => ({ ...p, [m.id]: n })),
+                          symbol,
+                        )}
+                      {on &&
+                        splitType === 'PERCENTAGE' &&
+                        numberBox(
+                          percentages[m.id],
+                          (n) => setPercentages((p) => ({ ...p, [m.id]: n })),
+                          undefined,
+                          '%',
+                        )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </Section>
           </div>
-
-          <div className="pt-4 flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={
-                !amount ||
-                (splitType === 'EXACT' && !exactValid) ||
-                (splitType === 'PERCENTAGE' && !percentValid) ||
-                (isMultiplePayers && !payerValid)
-              }
-              className="px-6 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors"
-            >
-              Add Expense
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </Sheet>
+      </form>
+      {managing && <CategoryManager workspaceId={workspaceId} onClose={() => setManaging(false)} />}
+    </>
   );
-};
+}

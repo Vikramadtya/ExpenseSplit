@@ -10,19 +10,7 @@ import {
   setBudgetMutation,
 } from '../../api/@tanstack/react-query.gen';
 import { formatCurrency } from '../../utils/currency';
-
-const CATEGORIES = [
-  'ALL',
-  'Food & Drink',
-  'Transport',
-  'Accommodation',
-  'Entertainment',
-  'Groceries',
-  'Utilities',
-  'Health',
-  'Shopping',
-  'Other',
-];
+import { useCategories } from '../categories/useCategories';
 
 const barColor = (percent: number) =>
   percent >= 100 ? 'bg-red-500' : percent >= 80 ? 'bg-amber-500' : 'bg-emerald-500';
@@ -30,6 +18,7 @@ const barColor = (percent: number) =>
 /** Monthly spending limits. The group is notified at 80% and 100%. */
 export function BudgetsPanel({ workspaceId }: { workspaceId: string }) {
   const queryClient = useQueryClient();
+  const { roots, childrenOf, iconOf } = useCategories(workspaceId);
   const { data: budgets = [] } = useQuery(listBudgetsOptions({ path: { workspaceId } }));
   const { data: workspace } = useQuery(getWorkspaceOptions({ path: { workspaceId } }));
   const [category, setCategory] = useState('ALL');
@@ -84,11 +73,18 @@ export function BudgetsPanel({ workspaceId }: { workspaceId: string }) {
             aria-label="Budget category"
             className="input-field w-auto"
           >
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c === 'ALL' ? 'Everything' : c}
-              </option>
-            ))}
+            <option value="ALL">Everything</option>
+            {roots.map((root) => [
+              <option key={root.id} value={root.name}>
+                {root.icon} {root.name}
+              </option>,
+              ...childrenOf(root.id).map((kid) => (
+                <option key={kid.id} value={kid.name}>
+                  {'\u00a0\u00a0\u00a0'}
+                  {kid.icon} {kid.name}
+                </option>
+              )),
+            ])}
           </select>
           <input
             value={amount}
@@ -118,7 +114,7 @@ export function BudgetsPanel({ workspaceId }: { workspaceId: string }) {
             <li key={b.id}>
               <div className="flex items-center justify-between text-sm mb-1">
                 <span className="font-medium text-text-main">
-                  {b.category === 'ALL' ? 'Everything' : b.category}
+                  {b.category === 'ALL' ? 'Everything' : `${iconOf(b.category)} ${b.category}`}
                 </span>
                 <span className="text-text-muted">
                   {formatCurrency(b.spent, b.currency)} of {formatCurrency(b.amount, b.currency)} ·{' '}

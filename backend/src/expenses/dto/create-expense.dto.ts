@@ -1,8 +1,7 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { currencyCode } from '../../common/money/currency-code.schema';
-
-import { CATEGORIES, isCategory } from '../../common/categories';
+import { tag, uniqueTags } from '../../common/tags';
 
 const userId = z.string().uuid();
 const money = z.number().finite().max(9_999_999_999);
@@ -23,15 +22,11 @@ export const createExpenseSchema = z.object({
   amount: money.positive(),
   date: z.string().refine((s) => !Number.isNaN(Date.parse(s)), 'Invalid date'),
   splitType: z.enum(['EQUAL', 'EXACT', 'PERCENTAGE', 'SHARES', 'ITEMIZED']).default('EQUAL'),
-  // Unknown names (older clients) fall back to Other instead of failing the request.
-  category: z
-    .string()
-    .max(40)
-    .transform((c) => (isCategory(c) ? c : 'Other'))
-    .default('Other'),
+  // Matched against the workspace's categories when saved; unknown names fall back to Other.
+  category: z.string().trim().min(1).max(40).default('Other'),
   currency: currencyCode.default('USD'),
   type: z.enum(['EXPENSE', 'TRANSFER']).default('EXPENSE'),
-  tags: z.array(z.string().trim().min(1).max(50)).max(20).optional(),
+  tags: z.array(tag).max(20).transform(uniqueTags).optional(),
   recurringInterval: z.enum(['NONE', 'DAILY', 'WEEKLY', 'MONTHLY']).default('NONE'),
 
   payers: z

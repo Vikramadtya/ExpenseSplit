@@ -26,6 +26,7 @@ import { buildSplitRows } from './split-builder';
 import { EventBus } from '../common/events/event-bus';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BudgetsService } from '../budgets/budgets.service';
+import { CategoriesService } from '../categories/categories.service';
 
 export interface ExpenseListQuery {
   q?: string;
@@ -74,6 +75,7 @@ export class ExpensesService {
     private readonly events: EventBus,
     private readonly notifications: NotificationsService,
     private readonly budgets: BudgetsService,
+    private readonly categories: CategoriesService,
   ) {}
 
   /** Throws if this expense could not be saved (bad split, non-members...), without saving it. */
@@ -109,7 +111,7 @@ export class ExpensesService {
         description: data.description,
         amount: Money.fromMajor(data.amount, data.currency).toDecimal(),
         currency: data.currency,
-        category: data.category,
+        category: await this.categories.resolve(workspaceId, data.category),
         date: new Date(data.date),
         splitType: data.splitType,
         type: data.type,
@@ -144,9 +146,14 @@ export class ExpensesService {
     const limit = Math.min(Math.max(query.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
     const rows = await this.expensesRepository.findPage(workspaceId, {
       q: query.q?.trim() || undefined,
-      tags: query.tags?.split(',').filter(Boolean),
+      tags: query.tags
+        ?.split(',')
+        .map((t) => t.trim().toLowerCase())
+        .filter(Boolean),
       currency: query.currency?.toUpperCase(),
-      category: query.category,
+      categories: query.category
+        ? await this.categories.branch(workspaceId, query.category)
+        : undefined,
       from: query.from ? new Date(query.from) : undefined,
       to: query.to ? new Date(query.to) : undefined,
       after: query.cursor ? decodeCursor(query.cursor) : undefined,
@@ -177,7 +184,9 @@ export class ExpensesService {
     if (data.description !== undefined) patch.description = data.description;
     if (data.date !== undefined) patch.date = new Date(data.date);
     if (data.tags !== undefined) patch.tags = data.tags;
-    if (data.category !== undefined) patch.category = data.category;
+    if (data.category !== undefined) {
+      patch.category = await this.categories.resolve(workspaceId, data.category);
+    }
 
     const affectsSplits = [
       data.amount,

@@ -10,20 +10,10 @@ import {
 } from 'recharts';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useCategories } from '../features/categories/useCategories';
 import { BudgetsPanel } from '../features/budgets/BudgetsPanel';
 import { formatCurrency } from '../utils/currency';
 import { getAnalyticsOptions } from '../api/@tanstack/react-query.gen';
-
-const CATEGORY_ICONS: Record<string, string> = {
-  'Food & Drink': '🍽️',
-  Transport: '🚗',
-  Shopping: '🛍️',
-  Entertainment: '🎬',
-  Accommodation: '🏠',
-  Utilities: '💡',
-  Groceries: '🛒',
-  Other: '📝',
-};
 
 const periodStart = (period: 'all' | 'month' | '30d' | 'year'): string | undefined => {
   const now = new Date();
@@ -35,6 +25,7 @@ const periodStart = (period: 'all' | 'month' | '30d' | 'year'): string | undefin
 };
 
 export default function AnalyticsPage({ workspaceId }: { workspaceId: string }) {
+  const { iconOf } = useCategories(workspaceId);
   const [period, setPeriod] = useState<'all' | 'month' | '30d' | 'year'>('all');
   const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('day');
   const { data, isLoading } = useQuery({
@@ -253,7 +244,7 @@ export default function AnalyticsPage({ workspaceId }: { workspaceId: string }) 
                     {topCategories?.map((cat: any, i: number) => (
                       <div key={i} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="text-xl">{CATEGORY_ICONS[cat.description] || '📝'}</span>
+                          <span className="text-xl">{iconOf(cat.description)}</span>
                           <span className="text-sm font-medium text-text-main">
                             {cat.description}
                           </span>

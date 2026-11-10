@@ -307,3 +307,9 @@ OpenAPI stays the contract: edit `openapi.yaml` → regenerate the client → CI
 - Money columns are `numeric(16,4)`. Raw `amount` fields from some endpoints are the database's decimal
   strings (for example `"1500.0000"`); use the currency's `exponent` to display them.
 - Not built: per-expense-date exchange rates, and cash-rounding rules (for example Swiss 5-rappen).
+
+## Categories and tags
+
+- **Categories** are per workspace (`categories` table, migration 0010), seeded with the defaults the first time they are read. One level of nesting: a sub-category belongs to a top-level parent. Expenses keep storing the category *name*; renaming a category renames it on its expenses and budgets in one transaction, deleting moves expenses to the parent (or `Other`). `Other` is the locked fallback. Filtering by, or budgeting on, a parent covers its sub-categories.
+- **Tags** are stored lower-case without the hash (existing rows are lower-cased by the migration). `GET /workspaces/:id/tags?q=&limit=` returns matches (prefix first, then by use) or, with no `q`, the most used.
+- **Add expense** is a sheet (bottom sheet on phones): amount first, description picks a category until you choose one, searchable category picker with "create", tag input with suggestions, `⌘↵` to save.

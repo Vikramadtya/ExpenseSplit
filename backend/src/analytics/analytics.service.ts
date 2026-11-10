@@ -22,8 +22,8 @@ export class AnalyticsService {
     return this.build(await this.repository.workspaceIdsOf(userId), userId, query);
   }
 
-  tags(workspaceId: string) {
-    return this.repository.tagUsage(workspaceId);
+  tags(workspaceId: string, q?: string, limit?: number) {
+    return this.repository.tagUsage(workspaceId, q, limit);
   }
 
   private async build(workspaceIds: string[], userId: string, q: AnalyticsQueryDto) {
