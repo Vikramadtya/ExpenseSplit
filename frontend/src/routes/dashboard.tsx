@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { formatCurrency } from '../utils/currency';
 import { getWorkspaceOptions, getBalancesOptions } from '../api/@tanstack/react-query.gen';
@@ -12,7 +11,7 @@ import { InviteMemberModal } from '../features/workspaces/components/InviteMembe
 import { WorkspaceSettingsModal } from '../features/workspaces/components/WorkspaceSettingsModal';
 import { Settings } from 'lucide-react';
 import { DebtSimplificationPanel } from '../features/balances/components/DebtSimplificationPanel';
-import { Receipt, Plus, UserPlus, BarChart2, Users, Activity } from 'lucide-react';
+import { Receipt, Plus, UserPlus, Activity } from 'lucide-react';
 import { RecentActivity } from '../features/workspaces/components/RecentActivity';
 
 export default function DashboardRoute({ workspaceId }: { workspaceId: string }) {
@@ -75,47 +74,19 @@ export default function DashboardRoute({ workspaceId }: { workspaceId: string })
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Link
-            to="/analytics"
-            search={{ workspaceId }}
-            className="flex items-center gap-2 bg-surface border border-border text-text-muted hover:text-text-main font-medium py-2 px-4 rounded-lg transition-colors text-sm"
-          >
-            <BarChart2 className="w-4 h-4" />
-            <span className="hidden sm:inline">Analytics</span>
-          </Link>
-          <Link
-            to="/members"
-            search={{ workspaceId }}
-            className="flex items-center gap-2 bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 border border-purple-500/20 font-medium py-2 px-4 rounded-lg transition-colors text-sm"
-          >
-            <Users className="w-4 h-4" />
-            <span className="hidden sm:inline">Members</span>
-          </Link>
-          <button
-            onClick={() => setIsSettingsOpen(true)}
-            className="flex items-center gap-2 bg-surface border border-border text-text-muted hover:text-text-main font-medium py-2 px-4 rounded-lg transition-colors text-sm"
-          >
+          <button onClick={() => setIsSettingsOpen(true)} className="btn-secondary">
             <Settings className="w-4 h-4" />
             <span className="hidden sm:inline">Settings</span>
           </button>
-          <button
-            onClick={() => setIsInviteOpen(true)}
-            className="flex items-center gap-2 bg-surface border border-border text-text-muted hover:text-text-main font-medium py-2 px-4 rounded-lg transition-colors text-sm"
-          >
+          <button onClick={() => setIsInviteOpen(true)} className="btn-secondary">
             <UserPlus className="w-4 h-4" />
             <span className="hidden sm:inline">Invite</span>
           </button>
-          <button
-            onClick={() => setIsReceiptOpen(true)}
-            className="flex items-center gap-2 bg-surface border border-border text-text-muted hover:text-text-main font-medium py-2 px-4 rounded-lg transition-colors text-sm"
-          >
+          <button onClick={() => setIsReceiptOpen(true)} className="btn-secondary">
             <Receipt className="w-4 h-4" />
             <span className="hidden sm:inline">Scan receipt</span>
           </button>
-          <button
-            onClick={() => setIsAddExpenseOpen(true)}
-            className="btn-primary flex items-center gap-2 text-sm"
-          >
+          <button onClick={() => setIsAddExpenseOpen(true)} className="btn-primary">
             <Plus className="w-4 h-4" />
             Add Expense
           </button>
