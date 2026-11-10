@@ -78,8 +78,8 @@ export function CategoryPicker({
         path: { workspaceId },
         body: { name: query.trim() },
       });
-      await queryClient.invalidateQueries();
       pick(created.name);
+      void queryClient.invalidateQueries();
     } catch {
       toast.error('Could not create the category');
     }

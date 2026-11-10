@@ -291,7 +291,8 @@ function AddExpenseSheet({ onClose, workspaceId }: Omit<Props, 'isOpen'>) {
           },
         });
       }
-      await queryClient.invalidateQueries();
+      // Refresh in the background: the sheet closes as soon as the server has saved it.
+      void queryClient.invalidateQueries();
       toast.success(repeat === 'NONE' ? 'Expense added' : 'Recurring expense set up');
       onClose();
     } catch {

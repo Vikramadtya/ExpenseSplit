@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useDebounced } from '../hooks/useDebounced';
 import DashboardLayout from '../layouts/DashboardLayout';
 import {
   listWorkspaceExpensesOptions,
@@ -23,6 +24,7 @@ import toast from 'react-hot-toast';
 export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounced(search, 250);
   const [filterCurrency, setFilterCurrency] = useState('ALL');
   const [filterCategory, setFilterCategory] = useState('ALL');
   const [filterTags, setFilterTags] = useState<string[]>([]);
@@ -35,14 +37,18 @@ export default function ExpensesPage({ workspaceId }: { workspaceId: string }) {
   const listOptions = listWorkspaceExpensesOptions({
     path: { workspaceId },
     query: {
-      search: search || undefined,
+      search: debouncedSearch || undefined,
       currency: filterCurrency !== 'ALL' ? filterCurrency : undefined,
       category: filterCategory !== 'ALL' ? filterCategory : undefined,
       tags: filterTags.length ? filterTags.join(',') : undefined,
       sortBy,
     },
   });
-  const { data: expenses = [], isLoading } = useQuery(listOptions);
+  // Keep showing the previous results while a new filter loads, instead of flashing a skeleton.
+  const { data: expenses = [], isLoading } = useQuery({
+    ...listOptions,
+    placeholderData: keepPreviousData,
+  });
 
   const { data: members = [] } = useQuery(getWorkspaceMembersOptions({ path: { workspaceId } }));
   const deleteMutation = useMutation(deleteExpenseMutation());

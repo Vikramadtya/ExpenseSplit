@@ -25,6 +25,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   useWorkspaceEvents(workspaceId);
 
+  const tabs = [
+    { to: '/dashboard', icon: <Home className="h-5 w-5" />, label: 'Overview' },
+    { to: '/expenses', icon: <List className="h-5 w-5" />, label: 'Expenses' },
+    { to: '/members', icon: <Users className="h-5 w-5" />, label: 'Members' },
+    { to: '/analytics', icon: <BarChart2 className="h-5 w-5" />, label: 'Analytics' },
+  ];
+
   const navLink = (to: string, icon: React.ReactNode, label: string) => {
     const isActive = location.pathname.startsWith(to);
     return (
@@ -100,9 +107,37 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-8 overflow-y-auto z-10 animate-slide-up mt-4">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 pb-28 md:p-8 md:pb-8 overflow-y-auto z-10 animate-slide-up mt-4">
         {children}
       </main>
+
+      {/* Phones get a bottom tab bar, since the top navigation is hidden there. */}
+      <nav
+        aria-label="Primary"
+        className="md:hidden fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/90 backdrop-blur-md pb-[env(safe-area-inset-bottom)]"
+      >
+        <div className="mx-auto grid max-w-md grid-cols-4">
+          {tabs.map(({ to, icon, label }) => {
+            const active = location.pathname.startsWith(to);
+            return (
+              <Link
+                key={to}
+                to={to}
+                search={{ workspaceId }}
+                aria-current={active ? 'page' : undefined}
+                className={`press flex flex-col items-center gap-1 py-2.5 text-xs font-medium transition-colors ${active ? 'text-primary' : 'text-text-muted'}`}
+              >
+                <span
+                  className={`rounded-full px-4 py-1 transition-colors ${active ? 'bg-primary/10' : ''}`}
+                >
+                  {icon}
+                </span>
+                {label}
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
 
       {showProfile && currentUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">

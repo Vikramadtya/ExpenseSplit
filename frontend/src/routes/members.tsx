@@ -35,7 +35,14 @@ export default function MembersPage({ workspaceId }: { workspaceId: string }) {
 
         <div className="glass-panel overflow-hidden">
           {isLoading ? (
-            <div className="p-8 text-center text-text-muted">Loading members...</div>
+            <div className="divide-y divide-border" aria-busy="true">
+              {Array.from({ length: 3 }, (_, i) => (
+                <div key={i} className="flex items-center gap-4 p-4">
+                  <div className="skeleton h-10 w-10 rounded-full" />
+                  <div className="skeleton h-4 w-40" />
+                </div>
+              ))}
+            </div>
           ) : members.length === 0 ? (
             <div className="p-12 text-center text-text-muted">
               <Users className="w-12 h-12 mx-auto mb-4 opacity-20" />

@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { PageSkeleton } from '../components/ui/PageSkeleton';
 import { useCategories } from '../features/categories/useCategories';
 import { BudgetsPanel } from '../features/budgets/BudgetsPanel';
 import { formatCurrency } from '../utils/currency';
@@ -40,7 +41,7 @@ export default function AnalyticsPage({ workspaceId }: { workspaceId: string }) 
   if (isLoading)
     return (
       <DashboardLayout>
-        <div className="p-6 animate-pulse space-y-4">Loading analytics...</div>
+        <PageSkeleton rows={3} />
       </DashboardLayout>
     );
 

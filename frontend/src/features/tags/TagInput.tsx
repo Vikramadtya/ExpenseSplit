@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Hash, X } from 'lucide-react';
 import { listTagsOptions } from '../../api/@tanstack/react-query.gen';
 import { useClickOutside } from '../../hooks/useClickOutside';
+import { useDebounced } from '../../hooks/useDebounced';
 
 interface Props {
   workspaceId: string;
@@ -13,15 +14,6 @@ interface Props {
 
 /** "#Trip " and "trip" are the same tag; the server stores it this way too. */
 export const normalizeTag = (raw: string) => raw.trim().replace(/^#+/, '').trim().toLowerCase();
-
-const useDebounced = <T,>(value: T, ms: number) => {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const t = window.setTimeout(() => setDebounced(value), ms);
-    return () => window.clearTimeout(t);
-  }, [value, ms]);
-  return debounced;
-};
 
 /**
  * Chips plus a suggestion list: the workspace's most-used tags while the box is empty, matches as

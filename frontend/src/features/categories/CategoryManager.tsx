@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import {
   createCategoryMutation,
   deleteCategoryMutation,
+  listCategoriesQueryKey,
   updateCategoryMutation,
 } from '../../api/@tanstack/react-query.gen';
 import type { Category } from '../../api/types.gen';
@@ -68,7 +69,13 @@ export function CategoryManager({ workspaceId, onClose }: Props) {
   const [newName, setNewName] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
-  const refresh = () => queryClient.invalidateQueries();
+  // The category list refreshes first (the sheet needs it); everything else catches up behind it.
+  const refresh = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: listCategoriesQueryKey({ path: { workspaceId } }),
+    });
+    void queryClient.invalidateQueries();
+  };
 
   const startEdit = (c: Category) => {
     setEditing(c.id);

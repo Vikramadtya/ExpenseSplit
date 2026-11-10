@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { formatCurrency } from '../utils/currency';
 import { getWorkspaceOptions, getBalancesOptions } from '../api/@tanstack/react-query.gen';
+import { PageSkeleton } from '../components/ui/PageSkeleton';
 import DashboardLayout from '../layouts/DashboardLayout';
 import { ReceiptSplitModal } from '../features/expenses/components/ReceiptSplitModal';
 import { AddExpenseModal } from '../features/expenses/components/AddExpenseModal';
@@ -55,9 +56,7 @@ export default function DashboardRoute({ workspaceId }: { workspaceId: string })
   if (isWorkspaceLoading || isBalancesLoading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center min-h-[50vh]">
-          <p className="text-text-muted">Loading dashboard...</p>
-        </div>
+        <PageSkeleton />
       </DashboardLayout>
     );
   }
