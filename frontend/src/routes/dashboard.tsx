@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { formatCurrency } from '../utils/currency';
 import { getWorkspaceOptions, getBalancesOptions } from '../api/@tanstack/react-query.gen';
-import { PageSkeleton } from '../components/ui/PageSkeleton';
+import { PizzaLoader } from '../components/ui/PizzaLoader';
 import DashboardLayout from '../layouts/DashboardLayout';
 import { ReceiptSplitModal } from '../features/expenses/components/ReceiptSplitModal';
 import { AddExpenseModal } from '../features/expenses/components/AddExpenseModal';
@@ -55,7 +55,7 @@ export default function DashboardRoute({ workspaceId }: { workspaceId: string })
   if (isWorkspaceLoading || isBalancesLoading) {
     return (
       <DashboardLayout>
-        <PageSkeleton />
+        <PizzaLoader />
       </DashboardLayout>
     );
   }

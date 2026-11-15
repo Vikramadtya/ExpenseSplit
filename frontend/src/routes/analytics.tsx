@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { ArrowDownRight, ArrowUpRight, Hash, Lightbulb, Minus } from 'lucide-react';
 import DashboardLayout from '../layouts/DashboardLayout';
-import { PageSkeleton } from '../components/ui/PageSkeleton';
+import { PizzaLoader } from '../components/ui/PizzaLoader';
 import { BudgetsPanel } from '../features/budgets/BudgetsPanel';
 import { categoryStyle, useCategories } from '../features/categories/useCategories';
 import { getAnalyticsOptions } from '../api/@tanstack/react-query.gen';
@@ -138,7 +138,7 @@ export default function AnalyticsPage({ workspaceId }: { workspaceId: string }) 
   if (isLoading && !data) {
     return (
       <DashboardLayout>
-        <PageSkeleton rows={3} />
+        <PizzaLoader />
       </DashboardLayout>
     );
   }

@@ -10,9 +10,39 @@
     <link rel="manifest" href="/favicon/site.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ExpenseSplit</title>
+    <style>
+      /* Pizza loader: shared by the pre-load splash below and the React <PizzaLoader />. */
+      .pizza-slice {
+        transform-origin: 50px 50px;
+        transform: rotate(var(--r)) translateY(-1.5px);
+        animation: pizza-split 1.8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+      }
+      .pizza-spin {
+        animation: pizza-turn 7s linear infinite;
+      }
+      @keyframes pizza-split {
+        0%, 12% { transform: rotate(var(--r)) translateY(-1.5px); }
+        45%, 62% { transform: rotate(var(--r)) translateY(-11px); }
+        100% { transform: rotate(var(--r)) translateY(-1.5px); }
+      }
+      @keyframes pizza-turn { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) {
+        .pizza-spin { animation: none; }
+        .pizza-slice { animation-duration: 3.6s; }
+      }
+      #splash {
+        min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+        justify-content: center; gap: 20px; font: 500 14px system-ui, sans-serif; color: #6b7280;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="splash" role="status">
+        <svg viewBox="0 0 100 100" width="112" height="112" class="pizza-spin" aria-hidden="true"><g class="pizza-slice" style="--r:0deg;animation-delay:0ms"><path d="M50 50 L34.7 13 A40 40 0 0 1 65.3 13 Z" fill="#fbbf24"/><path d="M34.7 13 A40 40 0 0 1 65.3 13" fill="none" stroke="#b45309" stroke-width="5" stroke-linecap="round"/><circle cx="50" cy="27" r="3.4" fill="#dc2626"/><circle cx="50" cy="40" r="2.2" fill="#dc2626"/></g><g class="pizza-slice" style="--r:45deg;animation-delay:70ms"><path d="M50 50 L34.7 13 A40 40 0 0 1 65.3 13 Z" fill="#fbbf24"/><path d="M34.7 13 A40 40 0 0 1 65.3 13" fill="none" stroke="#b45309" stroke-width="5" stroke-linecap="round"/><circle cx="50" cy="27" r="3.4" fill="#dc2626"/><circle cx="50" cy="40" r="2.2" fill="#dc2626"/></g><g class="pizza-slice" style="--r:90deg;animation-delay:140ms"><path d="M50 50 L34.7 13 A40 40 0 0 1 65.3 13 Z" fill="#fbbf24"/><path d="M34.7 13 A40 40 0 0 1 65.3 13" fill="none" stroke="#b45309" stroke-width="5" stroke-linecap="round"/><circle cx="50" cy="27" r="3.4" fill="#dc2626"/><circle cx="50" cy="40" r="2.2" fill="#dc2626"/></g><g class="pizza-slice" style="--r:135deg;animation-delay:210ms"><path d="M50 50 L34.7 13 A40 40 0 0 1 65.3 13 Z" fill="#fbbf24"/><path d="M34.7 13 A40 40 0 0 1 65.3 13" fill="none" stroke="#b45309" stroke-width="5" stroke-linecap="round"/><circle cx="50" cy="27" r="3.4" fill="#dc2626"/><circle cx="50" cy="40" r="2.2" fill="#dc2626"/></g><g class="pizza-slice" style="--r:180deg;animation-delay:280ms"><path d="M50 50 L34.7 13 A40 40 0 0 1 65.3 13 Z" fill="#fbbf24"/><path d="M34.7 13 A40 40 0 0 1 65.3 13" fill="none" stroke="#b45309" stroke-width="5" stroke-linecap="round"/><circle cx="50" cy="27" r="3.4" fill="#dc2626"/><circle cx="50" cy="40" r="2.2" fill="#dc2626"/></g><g class="pizza-slice" style="--r:225deg;animation-delay:350ms"><path d="M50 50 L34.7 13 A40 40 0 0 1 65.3 13 Z" fill="#fbbf24"/><path d="M34.7 13 A40 40 0 0 1 65.3 13" fill="none" stroke="#b45309" stroke-width="5" stroke-linecap="round"/><circle cx="50" cy="27" r="3.4" fill="#dc2626"/><circle cx="50" cy="40" r="2.2" fill="#dc2626"/></g><g class="pizza-slice" style="--r:270deg;animation-delay:420ms"><path d="M50 50 L34.7 13 A40 40 0 0 1 65.3 13 Z" fill="#fbbf24"/><path d="M34.7 13 A40 40 0 0 1 65.3 13" fill="none" stroke="#b45309" stroke-width="5" stroke-linecap="round"/><circle cx="50" cy="27" r="3.4" fill="#dc2626"/><circle cx="50" cy="40" r="2.2" fill="#dc2626"/></g><g class="pizza-slice" style="--r:315deg;animation-delay:490ms"><path d="M50 50 L34.7 13 A40 40 0 0 1 65.3 13 Z" fill="#fbbf24"/><path d="M34.7 13 A40 40 0 0 1 65.3 13" fill="none" stroke="#b45309" stroke-width="5" stroke-linecap="round"/><circle cx="50" cy="27" r="3.4" fill="#dc2626"/><circle cx="50" cy="40" r="2.2" fill="#dc2626"/></g></svg>
+        <span>Splitting the bill…</span>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

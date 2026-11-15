@@ -21,7 +21,7 @@ const ExpensesRoute = lazy(() => import('./routes/expenses'));
 const FriendsRoute = lazy(() => import('./routes/friends'));
 const JoinRoute = lazy(() => import('./routes/join'));
 import { client } from './api/client.gen';
-import { PageSkeleton } from './components/ui/PageSkeleton';
+import { PizzaLoader } from './components/ui/PizzaLoader';
 import { getAccessToken, getFreshAccessToken, saveSession } from './auth/session';
 
 if (import.meta.env.VITE_API_BASE_URL) {
@@ -59,13 +59,7 @@ const requireAuth = () => {
 const rootRoute = createRootRoute({
   component: () => (
     <div className="min-h-screen bg-background text-text-main font-sans">
-      <Suspense
-        fallback={
-          <div className="p-8">
-            <PageSkeleton />
-          </div>
-        }
-      >
+      <Suspense fallback={<PizzaLoader />}>
         <Outlet />
       </Suspense>
     </div>
